@@ -1,1 +1,1 @@
-{"root":["./src/config.ts","./src/main.ts","./src/scenes/bootscene.ts","./src/scenes/characterselectscene.ts","./src/scenes/gamescene.ts","./src/scenes/introscene.ts"],"version":"5.9.3"}
+{"root":["./src/config.ts","./src/main.ts","./src/scenes/bootscene.ts","./src/scenes/characterselectscene.ts","./src/scenes/gamescene.ts","./src/scenes/introscene.ts","./src/scenes/level2scene.ts","./src/scenes/level3scene.ts"],"version":"5.9.3"}

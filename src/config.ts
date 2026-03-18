@@ -64,10 +64,13 @@ export const CHARACTER_OPTIONS: readonly CharacterConfig[] = [
 ];
 
 export const LEVEL1_CONFIG = {
-  topSafeHeight: 76,
+  topSafeHeight: 72,
   bottomSafeHeight: 88,
-  laneCount: 5,
-  carSpawnMs: 980,
+  lakeTop: 156,
+  lakeBottom: 284,
+  roadLaneCount: 7,
+  lilyPadRadius: 34,
+  carSpawnMs: 3_000,
   carMinSpeed: 170,
   carMaxSpeed: 280,
   carWidth: 72,
