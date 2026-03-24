@@ -10,6 +10,6 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.start("intro");
+    this.scene.start("level-8");
   }
 }

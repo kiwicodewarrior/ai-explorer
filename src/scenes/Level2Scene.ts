@@ -48,7 +48,7 @@ const SECRET_PORTAL_REVEAL_GRACE_MS = 650;
 const LEFT_SCROLL_BUFFER = GAME_WIDTH / 2;
 const LEFT_SCREEN_SCROLL_MARGIN = 72;
 
-const LEVEL_WIDTH = 3820;
+const LEVEL_WIDTH = 4960;
 const LEVEL_HEIGHT = 760;
 const GROUND_HEIGHT = 56;
 const START_X = 88;
@@ -89,6 +89,12 @@ const PLATFORM_LAYOUT = [
   { x: 3270, y: 186 },
   { x: 3455, y: 248 },
   { x: 3630, y: 184 },
+  { x: 3810, y: 258 },
+  { x: 3990, y: 322 },
+  { x: 4170, y: 252 },
+  { x: 4350, y: 194 },
+  { x: 4530, y: 254 },
+  { x: 4710, y: 186 },
 ] as const;
 
 const FLOOR_SPIKE_SEGMENTS = [
@@ -99,6 +105,9 @@ const FLOOR_SPIKE_SEGMENTS = [
   { start: 2270, end: 2490, step: 32 },
   { start: 2760, end: 3000, step: 32 },
   { start: 3270, end: 3500, step: 32 },
+  { start: 3760, end: 3920, step: 32 },
+  { start: 4210, end: 4440, step: 32 },
+  { start: 4590, end: 4810, step: 32 },
 ] as const;
 
 const PLATFORM_SPIKE_PLACEMENTS = [
@@ -120,12 +129,20 @@ const PLATFORM_SPIKE_PLACEMENTS = [
   { platformIndex: 16, offsetX: -32 },
   { platformIndex: 16, offsetX: 32 },
   { platformIndex: 18, offsetX: 0 },
+  { platformIndex: 20, offsetX: 0 },
+  { platformIndex: 21, offsetX: -32 },
+  { platformIndex: 21, offsetX: 32 },
+  { platformIndex: 22, offsetX: 0 },
+  { platformIndex: 23, offsetX: -32 },
+  { platformIndex: 23, offsetX: 32 },
 ] as const;
 
 const MOVING_HAZARDS: readonly MovingHazardConfig[] = [
   { x: 1110, y: 334, travel: 110, duration: 1800 },
   { x: 2500, y: 192, travel: 120, duration: 1550 },
   { x: 3500, y: 142, travel: 72, duration: 1300 },
+  { x: 4060, y: 280, travel: 96, duration: 1450 },
+  { x: 4460, y: 154, travel: 104, duration: 1350 },
 ] as const;
 
 const CHECKPOINTS: readonly CheckpointConfig[] = [
@@ -150,14 +167,21 @@ const CHECKPOINTS: readonly CheckpointConfig[] = [
     respawnY: PLATFORM_LAYOUT[17].y - PLAYER_PLATFORM_RESPAWN_OFFSET_Y,
     label: "Checkpoint 3",
   },
+  {
+    x: PLATFORM_LAYOUT[24].x - 66,
+    y: PLATFORM_LAYOUT[24].y - 12,
+    respawnX: PLATFORM_LAYOUT[24].x - 66,
+    respawnY: PLATFORM_LAYOUT[24].y - PLAYER_PLATFORM_RESPAWN_OFFSET_Y,
+    label: "Checkpoint 4",
+  },
 ] as const;
 
 const SECRET_PORTAL: SecretPortalConfig = {
   triggerX: 28,
   triggerY: LEVEL_HEIGHT - GROUND_HEIGHT,
-  destinationX: CHECKPOINTS[2].respawnX,
-  destinationY: CHECKPOINTS[2].respawnY,
-  checkpointIndex: 2,
+  destinationX: CHECKPOINTS[3].respawnX,
+  destinationY: CHECKPOINTS[3].respawnY,
+  checkpointIndex: 3,
 } as const;
 
 export class Level2Scene extends Phaser.Scene {

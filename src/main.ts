@@ -7,6 +7,11 @@ import { GameScene } from "./scenes/GameScene";
 import { IntroScene } from "./scenes/IntroScene";
 import { Level2Scene } from "./scenes/Level2Scene";
 import { Level3Scene } from "./scenes/Level3Scene";
+import { Level4Scene } from "./scenes/Level4Scene";
+import { Level5Scene } from "./scenes/Level5Scene";
+import { Level6Scene } from "./scenes/Level6Scene";
+import { Level7Scene } from "./scenes/Level7Scene";
+import { Level8Scene } from "./scenes/Level8Scene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -19,5 +24,17 @@ new Phaser.Game({
     default: "arcade",
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, IntroScene, CharacterSelectScene, GameScene, Level2Scene, Level3Scene],
+  scene: [
+    BootScene,
+    IntroScene,
+    CharacterSelectScene,
+    GameScene,
+    Level2Scene,
+    Level3Scene,
+    Level4Scene,
+    Level5Scene,
+    Level6Scene,
+    Level7Scene,
+    Level8Scene,
+  ],
 });
