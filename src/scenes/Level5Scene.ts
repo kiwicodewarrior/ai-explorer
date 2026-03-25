@@ -30,9 +30,9 @@ const TEXTURE_KEYS = {
 const REST_OPTIONS = [
   {
     key: "restore" as const,
-    title: "Take Level 6",
-    summary: "Stay on the main route.",
-    detail: "Continue into the laser hall and keep your run moving.",
+    title: "Restore Health",
+    summary: "Recover before the next level.",
+    detail: "Patch yourself up and head into Level 6 at full strength.",
     fillColor: 0x1f4d53,
     accentColor: 0x8ff7d8,
   },
@@ -290,7 +290,7 @@ export class Level5Scene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.footerText = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 38, "Restore sends you into Level 6. Skip jumps to Level 7.", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 38, "Restore Health sends you into Level 6. Skip jumps to Level 7.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "15px",
         color: "#b7cade",
@@ -360,7 +360,7 @@ export class Level5Scene extends Phaser.Scene {
       card.panel.setScale(isSelected ? 1.04 : 1);
       card.panel.setStrokeStyle(isSelected ? 4 : 2, isSelected ? option.accentColor : 0x4b6275, isSelected ? 1 : 0.75);
       card.glow.setVisible(isSelected);
-      card.badge.setText(card.key === "restore" ? "Play Level 6" : "Skip Level 6");
+      card.badge.setText(card.key === "restore" ? "Full Health" : "Skip Level 6");
       card.badge.setColor(isSelected ? "#08121a" : "#223342");
       card.badge.setBackgroundColor(isSelected ? "#ffffff" : "#c9d8e6");
     });
@@ -375,7 +375,7 @@ export class Level5Scene extends Phaser.Scene {
     this.registry.set("level5Reward", selectedOption.key);
 
     if (selectedOption.key === "restore") {
-      this.statusText.setText("Level 6 selected. Press Enter or Space to continue.");
+      this.statusText.setText("Health restored. Press Enter or Space for Level 6.");
     } else {
       this.statusText.setText("Level 6 will be skipped. Press Enter or Space for Level 7.");
     }
