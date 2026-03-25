@@ -7,6 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
 
 type Level3SceneData = {
   characterId?: CharacterId;
@@ -25,7 +26,7 @@ type RoadsideBuilding = {
 };
 
 const RUN_DURATION_MS = 35_000;
-const MAX_DEATHS = 3;
+const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 700;
 const SPAWN_MS = 720;
 const PLAYER_Y = GAME_HEIGHT - 110;
@@ -79,8 +80,7 @@ export class Level3Scene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private health = 3;
-  private deathCount = 0;
+  private livesRemaining = DEFAULT_RUN_LIVES;
   private outOfLives = false;
   private levelComplete = false;
   private levelElapsedMs = 0;
@@ -99,10 +99,10 @@ export class Level3Scene extends Phaser.Scene {
   }
 
   create(data: Level3SceneData = {}) {
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    this.health = this.selectedCharacter.maxHealth;
-    this.deathCount = 0;
-    this.outOfLives = false;
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
+    this.livesRemaining = getRunLives(this);
+    this.outOfLives = this.livesRemaining <= 0;
     this.levelComplete = false;
     this.levelElapsedMs = 0;
     this.levelEndTime = undefined;
@@ -643,11 +643,10 @@ export class Level3Scene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
     const elapsedMs = this.levelEndTime ?? this.levelElapsedMs;
     const remaining = Math.max(0, RUN_DURATION_MS - elapsedMs);
 
-    this.healthText.setText(`Health: ${Math.max(0, this.health)} | Lives: ${livesLeft}`);
+    this.healthText.setText(`Lives: ${this.livesRemaining}`);
     this.hudText.setText(`Character: ${this.selectedCharacter.name} | Lane ${this.laneIndex + 1}/3`);
     this.timerText.setText(`Survive: ${(remaining / 1000).toFixed(1)}s`);
   }
@@ -762,28 +761,17 @@ export class Level3Scene extends Phaser.Scene {
     }
 
     this.damageCooldownUntil = this.time.now + HIT_INVULN_MS;
-    this.health -= 1;
+    const livesLeft = loseRunLife(this);
+    this.livesRemaining = livesLeft;
 
-    if (this.health > 0) {
-      this.statusText.setText(`Hit obstacle! Health left: ${this.health}.`);
-      this.time.delayedCall(800, () => {
-        if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
-      });
-      return;
-    }
-
-    this.deathCount += 1;
-    if (this.deathCount >= MAX_DEATHS) {
+    if (livesLeft <= 0) {
       this.outOfLives = true;
       this.levelEndTime = this.levelElapsedMs;
-      this.health = 0;
       this.stopRunner();
-      this.statusText.setText("You can't play anymore. 3 deaths reached. Press ENTER.");
+      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
       return;
     }
 
-    const livesLeft = MAX_DEATHS - this.deathCount;
-    this.health = this.selectedCharacter.maxHealth;
     this.resetRunnerState();
     this.statusText.setText(`You crashed! Lives left: ${livesLeft}.`);
     this.time.delayedCall(900, () => {

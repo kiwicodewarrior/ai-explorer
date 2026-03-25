@@ -7,6 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { getRunLives, rememberRunCharacter } from "../systems/runState";
 
 type Level8SceneData = {
   characterId?: CharacterId;
@@ -32,10 +33,10 @@ export class Level8Scene extends Phaser.Scene {
   private healthText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private currentHealth = 1;
   private triesLeft = MAX_TRIES;
   private timerRunning = false;
   private levelComplete = false;
+  private transitioningToLevel9 = false;
   private outOfTries = false;
   private attemptStartTime = 0;
   private levelStartTime = 0;
@@ -46,17 +47,12 @@ export class Level8Scene extends Phaser.Scene {
   }
 
   create(data: Level8SceneData = {}) {
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    const incomingHealth = Phaser.Math.Clamp(
-      data.startingHealth ?? this.selectedCharacter.maxHealth,
-      1,
-      this.selectedCharacter.maxHealth,
-    );
-
-    this.currentHealth = Math.max(1, Math.ceil(incomingHealth / 2));
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
     this.triesLeft = MAX_TRIES;
     this.timerRunning = false;
     this.levelComplete = false;
+    this.transitioningToLevel9 = false;
     this.outOfTries = false;
     this.attemptStartTime = 0;
     this.levelStartTime = this.time.now;
@@ -71,7 +67,7 @@ export class Level8Scene extends Phaser.Scene {
     this.bindInput();
     this.updateHud();
 
-    this.statusText.setText("Health is halved. Start the stopwatch, then stop it between 7.00 and 7.50 seconds.");
+    this.statusText.setText("Start the stopwatch, then stop it between 7.00 and 7.50 seconds.");
     this.time.delayedCall(2200, () => {
       if (!this.levelComplete && !this.outOfTries && !this.timerRunning) this.statusText.setText("Press SPACE or ENTER to start.");
     });
@@ -139,7 +135,7 @@ export class Level8Scene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
     this.add
-      .text(158, 174, `${this.selectedCharacter.role} | Health halved for this level`, {
+      .text(158, 174, `${this.selectedCharacter.role} | 8 tries in this level`, {
         fontFamily: "system-ui, sans-serif",
         fontSize: "16px",
         color: "#bfd1ea",
@@ -209,12 +205,13 @@ export class Level8Scene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     if (!keyboard) return;
 
+    keyboard.addCapture([Phaser.Input.Keyboard.KeyCodes.ENTER, Phaser.Input.Keyboard.KeyCodes.SPACE]);
     this.confirmKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.spaceKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
   }
 
   private updateHud() {
-    this.healthText.setText(`Health: ${this.currentHealth} | Tries: ${this.triesLeft}`);
+    this.healthText.setText(`Lives: ${getRunLives(this)} | Tries: ${this.triesLeft}`);
     this.hudText.setText(`Character: ${this.selectedCharacter.name} | Blind challenge`);
   }
 
@@ -225,7 +222,11 @@ export class Level8Scene extends Phaser.Scene {
 
     if (this.levelComplete || this.outOfTries) {
       if (pressed) {
-        this.scene.start("character-select");
+        if (this.levelComplete) {
+          this.startLevel9();
+        } else {
+          this.scene.start("character-select");
+        }
       }
       return;
     }
@@ -272,7 +273,7 @@ export class Level8Scene extends Phaser.Scene {
     if (success) {
       this.levelComplete = true;
       this.levelEndTime = this.time.now;
-      this.statusText.setText("Level 8 complete! You nailed the stopwatch. Level 9 is not built yet. Press ENTER.");
+      this.statusText.setText("Level 8 complete! You nailed the stopwatch. Press ENTER for Level 9.");
       return;
     }
 
@@ -285,5 +286,12 @@ export class Level8Scene extends Phaser.Scene {
 
     const earlyLate = timedOut ? "Timer ran too long." : elapsed < TARGET_MIN_TIME_S ? "Too early." : "Too late.";
     this.statusText.setText(`${earlyLate} ${this.triesLeft} tries left. Press SPACE or ENTER to try again.`);
+  }
+
+  private startLevel9() {
+    if (this.transitioningToLevel9) return;
+
+    this.transitioningToLevel9 = true;
+    this.scene.start("level-9", { characterId: this.selectedCharacter.id });
   }
 }

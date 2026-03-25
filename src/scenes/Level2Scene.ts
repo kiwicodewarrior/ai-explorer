@@ -7,6 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
 
 type Level2SceneData = {
   characterId?: CharacterId;
@@ -35,7 +36,7 @@ type SecretPortalConfig = {
   checkpointIndex: number;
 };
 
-const MAX_DEATHS = 4;
+const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 800;
 const GRAVITY_Y = 980;
 const BASE_MOVE_SPEED = 250;
@@ -215,8 +216,7 @@ export class Level2Scene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private health = 3;
-  private deathCount = 0;
+  private livesRemaining = DEFAULT_RUN_LIVES;
   private outOfLives = false;
   private levelComplete = false;
   private levelStartTime = 0;
@@ -236,10 +236,10 @@ export class Level2Scene extends Phaser.Scene {
   }
 
   create(data: Level2SceneData = {}) {
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    this.health = this.selectedCharacter.maxHealth;
-    this.deathCount = 0;
-    this.outOfLives = false;
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
+    this.livesRemaining = getRunLives(this);
+    this.outOfLives = this.livesRemaining <= 0;
     this.levelComplete = false;
     this.levelEndTime = undefined;
     this.damageCooldownUntil = 0;
@@ -639,11 +639,10 @@ export class Level2Scene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
     const progress = Phaser.Math.Clamp((this.player.x / GOAL_X) * 100, 0, 100);
     const checkpointLabel = this.activeCheckpointIndex >= 0 ? `CP ${this.activeCheckpointIndex + 1}` : "Start";
 
-    this.healthText.setText(`Health: ${Math.max(0, this.health)} | Lives: ${livesLeft}`);
+    this.healthText.setText(`Lives: ${this.livesRemaining}`);
     this.hudText.setText(
       `Character: ${this.selectedCharacter.name} | Progress: ${progress.toFixed(0)}% | Checkpoint: ${checkpointLabel}`,
     );
@@ -756,30 +755,19 @@ export class Level2Scene extends Phaser.Scene {
     if (this.time.now < this.damageCooldownUntil) return;
     this.damageCooldownUntil = this.time.now + HIT_INVULN_MS;
 
-    this.health -= 1;
-    if (this.health > 0) {
-      this.respawnPlayer();
-      this.statusText.setText(`${message} Health left: ${this.health}.`);
-      this.time.delayedCall(900, () => {
-        if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
-      });
-      return;
-    }
+    const livesLeft = loseRunLife(this);
+    this.livesRemaining = livesLeft;
 
-    this.deathCount += 1;
-    if (this.deathCount >= MAX_DEATHS) {
+    if (livesLeft <= 0) {
       this.outOfLives = true;
       this.levelEndTime = this.time.now;
-      this.health = 0;
       this.player.setVelocity(0, 0);
-      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} deaths reached. Press ENTER.`);
+      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
       return;
     }
 
-    const livesLeft = MAX_DEATHS - this.deathCount;
-    this.health = this.selectedCharacter.maxHealth;
     this.respawnPlayer();
-    this.statusText.setText(`You died! Lives left: ${livesLeft}.`);
+    this.statusText.setText(`${message} Lives left: ${livesLeft}.`);
     this.time.delayedCall(1000, () => {
       if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
     });

@@ -7,6 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
 
 type Level4SceneData = {
   characterId?: CharacterId;
@@ -38,7 +39,7 @@ const PLAYER_START_X = 136;
 const PLAYER_START_Y = WORLD_HEIGHT - 138;
 const EXIT_X = WORLD_WIDTH - 154;
 const EXIT_Y = 132;
-const MAX_DEATHS = 3;
+const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 800;
 const TOTAL_CELLS = 4;
 const EXTRA_DRONE_ROWS = 6;
@@ -165,8 +166,7 @@ export class Level4Scene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private health = 3;
-  private deathCount = 0;
+  private livesRemaining = DEFAULT_RUN_LIVES;
   private outOfLives = false;
   private levelComplete = false;
   private damageCooldownUntil = 0;
@@ -180,10 +180,10 @@ export class Level4Scene extends Phaser.Scene {
   }
 
   create(data: Level4SceneData = {}) {
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    this.health = this.selectedCharacter.maxHealth;
-    this.deathCount = 0;
-    this.outOfLives = false;
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
+    this.livesRemaining = getRunLives(this);
+    this.outOfLives = this.livesRemaining <= 0;
     this.levelComplete = false;
     this.damageCooldownUntil = 0;
     this.levelEndTime = undefined;
@@ -516,11 +516,10 @@ export class Level4Scene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
     const elapsedMs = (this.levelEndTime ?? this.time.now) - this.levelStartTime;
     const portalLabel = this.portalUnlocked ? "Open" : "Locked";
 
-    this.healthText.setText(`Health: ${Math.max(0, this.health)} | Lives: ${livesLeft}`);
+    this.healthText.setText(`Lives: ${this.livesRemaining}`);
     this.hudText.setText(
       `Character: ${this.selectedCharacter.name} | Diamonds: ${this.collectedCells}/${TOTAL_CELLS} | Portal: ${portalLabel}`,
     );
@@ -530,10 +529,7 @@ export class Level4Scene extends Phaser.Scene {
   update() {
     if (this.levelComplete) {
       if (this.confirmKey && Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
-        this.scene.start("level-5", {
-          characterId: this.selectedCharacter.id,
-          currentHealth: this.health,
-        });
+        this.scene.start("level-5", { characterId: this.selectedCharacter.id });
       }
       this.player.setVelocity(0, 0);
       this.updateHud();
@@ -653,29 +649,17 @@ export class Level4Scene extends Phaser.Scene {
     if (this.time.now < this.damageCooldownUntil) return;
 
     this.damageCooldownUntil = this.time.now + HIT_INVULN_MS;
-    this.health -= 1;
+    const livesLeft = loseRunLife(this);
+    this.livesRemaining = livesLeft;
 
-    if (this.health > 0) {
-      this.respawnPlayer();
-      this.statusText.setText(`${message} Health left: ${this.health}.`);
-      this.time.delayedCall(900, () => {
-        if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
-      });
-      return;
-    }
-
-    this.deathCount += 1;
-    if (this.deathCount >= MAX_DEATHS) {
+    if (livesLeft <= 0) {
       this.outOfLives = true;
       this.levelEndTime = this.time.now;
-      this.health = 0;
       this.player.setVelocity(0, 0);
-      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} deaths reached. Press ENTER.`);
+      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
       return;
     }
 
-    const livesLeft = MAX_DEATHS - this.deathCount;
-    this.health = this.selectedCharacter.maxHealth;
     this.respawnPlayer();
     this.shuffleRemainingDiamonds();
     this.statusText.setText(`You were knocked out! Lives left: ${livesLeft}. Diamonds moved closer to the middle.`);
@@ -705,7 +689,7 @@ export class Level4Scene extends Phaser.Scene {
     });
     const tightenedPoolSize = Math.max(
       activeCells.length,
-      positionsByCenter.length - this.deathCount * DIAMOND_POOL_TIGHTEN_PER_DEATH,
+      positionsByCenter.length - (MAX_DEATHS - this.livesRemaining) * DIAMOND_POOL_TIGHTEN_PER_DEATH,
     );
     const candidatePool = positionsByCenter.slice(0, tightenedPoolSize);
     const shuffledPool = Phaser.Utils.Array.Shuffle(candidatePool);

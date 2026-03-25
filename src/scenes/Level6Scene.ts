@@ -7,6 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
 
 type Level6SceneData = {
   characterId?: CharacterId;
@@ -31,7 +32,7 @@ const EXIT_Y = ROOM_Y + 22;
 const GUN_Y = ROOM_Y + 20;
 const GUN_X_POSITIONS = [GAME_WIDTH * 0.26, GAME_WIDTH / 2, GAME_WIDTH * 0.74] as const;
 const SURVIVE_MS = 18_000;
-const MAX_DEATHS = 3;
+const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 850;
 const PLAYER_SPEED = 240;
 const LASER_BURST_MS = 2_000;
@@ -70,10 +71,10 @@ export class Level6Scene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private health = 3;
-  private deathCount = 0;
+  private livesRemaining = DEFAULT_RUN_LIVES;
   private outOfLives = false;
   private levelComplete = false;
+  private transitioningToLevel7 = false;
   private exitUnlocked = false;
   private skipLevel = false;
   private levelStartTime = 0;
@@ -89,15 +90,12 @@ export class Level6Scene extends Phaser.Scene {
   }
 
   create(data: Level6SceneData = {}) {
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    this.health = Phaser.Math.Clamp(
-      data.startingHealth ?? this.selectedCharacter.maxHealth,
-      1,
-      this.selectedCharacter.maxHealth,
-    );
-    this.deathCount = 0;
-    this.outOfLives = false;
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
+    this.livesRemaining = getRunLives(this);
+    this.outOfLives = this.livesRemaining <= 0;
     this.levelComplete = false;
+    this.transitioningToLevel7 = false;
     this.exitUnlocked = false;
     this.skipLevel = data.skipLevel ?? false;
     this.levelStartTime = this.time.now;
@@ -120,7 +118,7 @@ export class Level6Scene extends Phaser.Scene {
     if (this.skipLevel) {
       this.statusText.setText("Level 6 skipped. Press ENTER for Level 7.");
       this.timerText.setText("Skipped");
-      this.healthText.setText(`Health: ${this.health} | Lives: ${MAX_DEATHS}`);
+      this.healthText.setText(`Lives: ${this.livesRemaining}`);
       return;
     }
 
@@ -282,6 +280,7 @@ export class Level6Scene extends Phaser.Scene {
     if (!keyboard) return;
 
     this.cursors = keyboard.createCursorKeys();
+    keyboard.addCapture([Phaser.Input.Keyboard.KeyCodes.ENTER]);
     this.leftKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
     this.rightKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
     this.upKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
@@ -409,12 +408,11 @@ export class Level6Scene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
     const elapsedMs = (this.levelEndTime ?? this.time.now) - this.levelStartTime;
     const remainingMs = Math.max(0, SURVIVE_MS - elapsedMs);
     const gateLabel = this.exitUnlocked ? "Open" : "Locked";
 
-    this.healthText.setText(`Health: ${Math.max(0, this.health)} | Lives: ${livesLeft}`);
+    this.healthText.setText(`Lives: ${this.livesRemaining}`);
     this.hudText.setText(`Character: ${this.selectedCharacter.name} | Guns: 3 | 7 shots / 2s | Exit: ${gateLabel}`);
     this.timerText.setText(this.skipLevel ? "Skipped" : `Unlock: ${(remainingMs / 1000).toFixed(1)}s`);
   }
@@ -426,22 +424,16 @@ export class Level6Scene extends Phaser.Scene {
 
   update() {
     if (this.skipLevel) {
-      if (this.confirmKey && Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
-        this.scene.start("level-7", {
-          characterId: this.selectedCharacter.id,
-          startingHealth: this.health,
-        });
+      if (this.confirmKey && (Phaser.Input.Keyboard.JustDown(this.confirmKey) || this.confirmKey.isDown)) {
+        this.startLevel7();
       }
       return;
     }
 
     if (this.levelComplete || this.outOfLives) {
-      if (this.confirmKey && Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
+      if (this.confirmKey && (Phaser.Input.Keyboard.JustDown(this.confirmKey) || (this.levelComplete && this.confirmKey.isDown))) {
         if (this.levelComplete) {
-          this.scene.start("level-7", {
-            characterId: this.selectedCharacter.id,
-            startingHealth: this.health,
-          });
+          this.startLevel7();
         } else {
           this.scene.start("character-select");
         }
@@ -532,35 +524,30 @@ export class Level6Scene extends Phaser.Scene {
     this.statusText.setText("Level 6 complete! Press ENTER for Level 7.");
   }
 
+  private startLevel7() {
+    if (this.transitioningToLevel7) return;
+
+    this.transitioningToLevel7 = true;
+    this.scene.start("level-7", { characterId: this.selectedCharacter.id });
+  }
+
   private handleLaserHit(message: string) {
     if (this.levelComplete || this.outOfLives) return;
     if (this.time.now < this.damageCooldownUntil) return;
 
     this.damageCooldownUntil = this.time.now + HIT_INVULN_MS;
-    this.health -= 1;
+    const livesLeft = loseRunLife(this);
+    this.livesRemaining = livesLeft;
 
-    if (this.health > 0) {
-      this.respawnPlayer();
-      this.statusText.setText(`${message} Health left: ${this.health}.`);
-      this.time.delayedCall(900, () => {
-        if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
-      });
-      return;
-    }
-
-    this.deathCount += 1;
-    if (this.deathCount >= MAX_DEATHS) {
+    if (livesLeft <= 0) {
       this.outOfLives = true;
       this.levelEndTime = this.time.now;
-      this.health = 0;
       this.player?.setVelocity(0, 0);
       this.stopGuns();
-      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} deaths reached. Press ENTER.`);
+      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
       return;
     }
 
-    const livesLeft = MAX_DEATHS - this.deathCount;
-    this.health = this.selectedCharacter.maxHealth;
     this.respawnPlayer();
     this.statusText.setText(`Laser burst hit! Lives left: ${livesLeft}.`);
     this.time.delayedCall(900, () => {
@@ -604,6 +591,18 @@ export class Level6Scene extends Phaser.Scene {
     return maybeGroup.children?.entries ?? [];
   }
 
+  private clearGroupSafe(group?: Phaser.Physics.Arcade.Group) {
+    if (!group) return;
+
+    const maybeGroup = group as Phaser.Physics.Arcade.Group & {
+      children?: { entries?: Phaser.GameObjects.GameObject[] };
+      clear: (removeFromScene?: boolean, destroyChild?: boolean) => void;
+    };
+
+    if (!maybeGroup.children?.entries) return;
+    maybeGroup.clear(true, true);
+  }
+
   private cleanupScene() {
     this.stopGuns();
 
@@ -616,7 +615,7 @@ export class Level6Scene extends Phaser.Scene {
       this.exitOverlap = undefined;
     }
 
-    this.lasers?.clear(true, true);
+    this.clearGroupSafe(this.lasers);
     this.exitPortal?.destroy();
     this.guns.forEach((gunState) => {
       gunState.sprite.destroy();

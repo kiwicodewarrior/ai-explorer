@@ -7,6 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
 
 type Level7SceneData = {
   characterId?: CharacterId;
@@ -30,7 +31,7 @@ type BarrelSpawnerConfig = {
 };
 
 const GRAVITY_Y = 980;
-const MAX_DEATHS = 3;
+const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 850;
 const BASE_MOVE_SPEED = 235;
 const BASE_JUMP_VELOCITY = 470;
@@ -96,10 +97,10 @@ export class Level7Scene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private health = 3;
-  private deathCount = 0;
+  private livesRemaining = DEFAULT_RUN_LIVES;
   private outOfLives = false;
   private levelComplete = false;
+  private transitioningToLevel8 = false;
   private levelStartTime = 0;
   private levelEndTime?: number;
   private damageCooldownUntil = 0;
@@ -109,15 +110,12 @@ export class Level7Scene extends Phaser.Scene {
   }
 
   create(data: Level7SceneData = {}) {
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    this.health = Phaser.Math.Clamp(
-      data.startingHealth ?? this.selectedCharacter.maxHealth,
-      1,
-      this.selectedCharacter.maxHealth,
-    );
-    this.deathCount = 0;
-    this.outOfLives = false;
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
+    this.livesRemaining = getRunLives(this);
+    this.outOfLives = this.livesRemaining <= 0;
     this.levelComplete = false;
+    this.transitioningToLevel8 = false;
     this.levelStartTime = this.time.now;
     this.levelEndTime = undefined;
     this.damageCooldownUntil = 0;
@@ -403,6 +401,7 @@ export class Level7Scene extends Phaser.Scene {
     if (!keyboard) return;
 
     this.cursors = keyboard.createCursorKeys();
+    keyboard.addCapture([Phaser.Input.Keyboard.KeyCodes.ENTER]);
     this.leftKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     this.rightKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     this.upKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
@@ -411,21 +410,17 @@ export class Level7Scene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
     const elapsedMs = (this.levelEndTime ?? this.time.now) - this.levelStartTime;
 
-    this.healthText.setText(`Health: ${Math.max(0, this.health)} | Lives: ${livesLeft}`);
+    this.healthText.setText(`Lives: ${this.livesRemaining}`);
     this.hudText.setText(`Character: ${this.selectedCharacter.name} | Goal: Barrel Maker`);
     this.timerText.setText(`Time: ${(elapsedMs / 1000).toFixed(1)}s`);
   }
 
   update() {
     if (this.levelComplete) {
-      if (this.confirmKey && Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
-        this.scene.start("level-8", {
-          characterId: this.selectedCharacter.id,
-          startingHealth: this.health,
-        });
+      if (this.confirmKey && (Phaser.Input.Keyboard.JustDown(this.confirmKey) || this.confirmKey.isDown)) {
+        this.startLevel8();
       }
       this.player.setVelocityX(0);
       this.updateHud();
@@ -504,30 +499,18 @@ export class Level7Scene extends Phaser.Scene {
 
     barrel.destroy();
     this.damageCooldownUntil = this.time.now + HIT_INVULN_MS;
-    this.health -= 1;
+    const livesLeft = loseRunLife(this);
+    this.livesRemaining = livesLeft;
 
-    if (this.health > 0) {
-      this.resetAfterHit();
-      this.statusText.setText(`Barrel hit! Health left: ${this.health}.`);
-      this.time.delayedCall(900, () => {
-        if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
-      });
-      return;
-    }
-
-    this.deathCount += 1;
-    if (this.deathCount >= MAX_DEATHS) {
+    if (livesLeft <= 0) {
       this.outOfLives = true;
       this.levelEndTime = this.time.now;
-      this.health = 0;
       this.stopBarrels();
       this.player.setVelocity(0, 0);
-      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} deaths reached. Press ENTER.`);
+      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
       return;
     }
 
-    const livesLeft = MAX_DEATHS - this.deathCount;
-    this.health = this.selectedCharacter.maxHealth;
     this.resetAfterHit();
     this.statusText.setText(`You got crushed! Lives left: ${livesLeft}.`);
     this.time.delayedCall(950, () => {
@@ -549,6 +532,13 @@ export class Level7Scene extends Phaser.Scene {
     this.stopBarrels();
     this.player.setVelocityX(0);
     this.statusText.setText("Level 7 complete! You reached the barrel maker. Press ENTER for Level 8.");
+  }
+
+  private startLevel8() {
+    if (this.transitioningToLevel8) return;
+
+    this.transitioningToLevel8 = true;
+    this.scene.start("level-8", { characterId: this.selectedCharacter.id });
   }
 
   private stopBarrels() {
@@ -578,6 +568,22 @@ export class Level7Scene extends Phaser.Scene {
     return maybeGroup.children?.entries ?? [];
   }
 
+  private clearGroupSafe(
+    group?:
+      | Phaser.Physics.Arcade.Group
+      | Phaser.Physics.Arcade.StaticGroup,
+  ) {
+    if (!group) return;
+
+    const maybeGroup = group as (Phaser.Physics.Arcade.Group | Phaser.Physics.Arcade.StaticGroup) & {
+      children?: { entries?: Phaser.GameObjects.GameObject[] };
+      clear: (removeFromScene?: boolean, destroyChild?: boolean) => void;
+    };
+
+    if (!maybeGroup.children?.entries) return;
+    maybeGroup.clear(true, true);
+  }
+
   private cleanupScene() {
     if (this.playerPlatformCollider) {
       this.playerPlatformCollider.destroy();
@@ -600,8 +606,8 @@ export class Level7Scene extends Phaser.Scene {
       this.barrelSpawnTimer = undefined;
     }
 
-    this.barrels?.clear(true, true);
-    this.platforms?.clear(true, true);
+    this.clearGroupSafe(this.barrels);
+    this.clearGroupSafe(this.platforms);
     this.barrelMakerGoal?.destroy();
     this.player?.destroy();
   }

@@ -9,48 +9,51 @@ import {
 } from "../config";
 import { getRunLives, rememberRunCharacter } from "../systems/runState";
 
-type Level5SceneData = {
+type Level9SceneData = {
   characterId?: CharacterId;
+  currentHealth?: number;
 };
 
-type RestOption = "restore" | "skip";
+type UpgradeOption = "triple-damage" | "two-clones";
 
-type RestOptionCard = {
-  key: RestOption;
+type UpgradeOptionCard = {
+  key: UpgradeOption;
   panel: Phaser.GameObjects.Rectangle;
   glow: Phaser.GameObjects.Rectangle;
   badge: Phaser.GameObjects.Text;
 };
 
 const TEXTURE_KEYS = {
-  player: "level5-player",
-  portal: "level5-portal",
+  player: "level9-player",
 } as const;
 
-const REST_OPTIONS = [
+const UPGRADE_OPTIONS = [
   {
-    key: "restore" as const,
-    title: "Take Level 6",
-    summary: "Stay on the main route.",
-    detail: "Continue into the laser hall and keep your run moving.",
-    fillColor: 0x1f4d53,
-    accentColor: 0x8ff7d8,
+    key: "triple-damage" as const,
+    title: "Triple Damage",
+    summary: "Your attacks hit three times harder.",
+    detail: "Best if you want short, heavy boss damage windows.",
+    fillColor: 0x4f261d,
+    accentColor: 0xffb37a,
+    badge: "x3 Attack",
   },
   {
-    key: "skip" as const,
-    title: "Skip Next Level",
-    summary: "Take the hidden shortcut.",
-    detail: "Hold a skip pass for the next stage.",
-    fillColor: 0x4a3561,
-    accentColor: 0xffdf82,
+    key: "two-clones" as const,
+    title: "Two Clones",
+    summary: "Summon two clones to mirror your pressure.",
+    detail: "Best if you want more bodies on screen for the boss.",
+    fillColor: 0x173a48,
+    accentColor: 0x8ff4ff,
+    badge: "2 Clones",
   },
 ] as const;
 
-export class Level5Scene extends Phaser.Scene {
+export class Level9Scene extends Phaser.Scene {
   private selectedCharacter!: CharacterConfig;
   private selectedIndex = 0;
   private choiceLocked = false;
-  private selectedReward?: RestOption;
+  private transitioningToLevel10 = false;
+  private selectedUpgrade?: UpgradeOption;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private leftKey?: Phaser.Input.Keyboard.Key;
@@ -62,21 +65,22 @@ export class Level5Scene extends Phaser.Scene {
 
   private statusText!: Phaser.GameObjects.Text;
   private footerText!: Phaser.GameObjects.Text;
-  private optionCards: RestOptionCard[] = [];
+  private optionCards: UpgradeOptionCard[] = [];
 
   constructor() {
-    super("level-5");
+    super("level-9");
   }
 
-  create(data: Level5SceneData = {}) {
+  create(data: Level9SceneData = {}) {
     const characterId = rememberRunCharacter(this, data.characterId);
     this.selectedCharacter = this.resolveCharacter(characterId);
     this.selectedIndex = 0;
     this.choiceLocked = false;
-    this.selectedReward = undefined;
+    this.transitioningToLevel10 = false;
+    this.selectedUpgrade = undefined;
     this.optionCards = [];
 
-    this.cameras.main.setBackgroundColor(0x09141d);
+    this.cameras.main.setBackgroundColor(0x0b1222);
     this.cameras.main.fadeIn(260, 0, 0, 0);
 
     this.createTextures();
@@ -109,69 +113,42 @@ export class Level5Scene extends Phaser.Scene {
       g.generateTexture(TEXTURE_KEYS.player, 40, 48);
       g.destroy();
     }
-
-    if (!this.textures.exists(TEXTURE_KEYS.portal)) {
-      const g = this.add.graphics({ x: 0, y: 0 });
-      g.setVisible(false);
-      g.fillStyle(0x7ad8ff, 0.12);
-      g.fillEllipse(40, 44, 56, 72);
-      g.lineStyle(4, 0xc3fbff, 0.85);
-      g.strokeEllipse(40, 44, 56, 72);
-      g.lineStyle(2, 0x84f6ff, 0.55);
-      g.strokeEllipse(40, 44, 38, 54);
-      g.generateTexture(TEXTURE_KEYS.portal, 80, 88);
-      g.destroy();
-    }
   }
 
   private drawBackground() {
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x09141d);
-    this.add.rectangle(GAME_WIDTH / 2, 110, GAME_WIDTH, 220, 0x17314b, 0.88);
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 88, GAME_WIDTH, 176, 0x213c30, 0.94);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x0b1222);
+    this.add.rectangle(GAME_WIDTH / 2, 108, GAME_WIDTH, 216, 0x182641, 0.88);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 92, GAME_WIDTH, 184, 0x1b1628, 0.94);
 
-    for (let x = 50; x < GAME_WIDTH + 90; x += 180) {
-      this.add.triangle(x, GAME_HEIGHT - 116, 0, 0, 78, -150, 156, 0, 0x10233b, 0.65).setOrigin(0.5, 1);
+    for (let x = 60; x < GAME_WIDTH + 80; x += 160) {
+      this.add.rectangle(x, GAME_HEIGHT / 2, 2, GAME_HEIGHT - 118, 0x334868, 0.28);
+    }
+    for (let y = 114; y < GAME_HEIGHT - 72; y += 76) {
+      this.add.rectangle(GAME_WIDTH / 2, y, GAME_WIDTH - 96, 2, 0x334868, 0.2);
     }
 
-    this.add.circle(126, 94, 36, 0xffd27a, 0.2);
-    this.add.circle(126, 94, 58, 0xffc25d, 0.1);
+    this.add.circle(132, 92, 38, 0xffd78a, 0.18);
+    this.add.circle(132, 92, 66, 0xffc15a, 0.08);
 
-    const fireGlow = this.add.ellipse(GAME_WIDTH / 2, GAME_HEIGHT - 118, 110, 40, 0xffa145, 0.14);
+    const portalGlow = this.add.ellipse(GAME_WIDTH - 126, 124, 108, 88, 0x8ff4ff, 0.1);
     this.tweens.add({
-      targets: fireGlow,
+      targets: portalGlow,
       scaleX: 1.08,
-      scaleY: 1.16,
-      alpha: 0.22,
-      duration: 980,
+      scaleY: 1.12,
+      alpha: 0.18,
+      duration: 1000,
       yoyo: true,
       repeat: -1,
       ease: "Sine.inOut",
     });
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 124, 40, 8, 0x5a341f).setAngle(16);
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 124, 40, 8, 0x5a341f).setAngle(-16);
-    this.add.triangle(GAME_WIDTH / 2, GAME_HEIGHT - 140, 0, 22, 12, -8, 24, 22, 0xffb14d, 0.95).setOrigin(0.5);
-    this.add.triangle(GAME_WIDTH / 2, GAME_HEIGHT - 146, 0, 18, 10, -8, 20, 18, 0xffef9c, 0.92).setOrigin(0.5);
-
-    this.add.rectangle(164, 344, 110, 72, 0x35566d, 0.86).setAngle(-4);
-    this.add.triangle(164, 302, 0, 74, 58, 0, 116, 74, 0x4f7690, 0.92).setOrigin(0.5);
-
-    const portal = this.add.image(GAME_WIDTH - 150, 248, TEXTURE_KEYS.portal).setScale(1.5).setAlpha(0.82);
-    this.tweens.add({
-      targets: portal,
-      scaleX: 1.58,
-      scaleY: 1.7,
-      alpha: 1,
-      duration: 920,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.inOut",
-    });
+    this.add.circle(GAME_WIDTH - 126, 124, 40, 0x6fdcff, 0.12).setStrokeStyle(3, 0xcaf9ff, 0.9);
+    this.add.circle(GAME_WIDTH - 126, 124, 24, 0x6fdcff, 0.08).setStrokeStyle(2, 0xcaf9ff, 0.7);
   }
 
   private createHeader() {
     this.add
-      .text(GAME_WIDTH / 2, 30, "Level 5: Rest Area", {
+      .text(GAME_WIDTH / 2, 30, "Level 9: Power Upgrade", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f7fbff",
@@ -181,20 +158,20 @@ export class Level5Scene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, 64, "Take a breath, pick one reward, then get ready for the next portal.", {
+      .text(GAME_WIDTH / 2, 62, "Choose one boss power-up before the final portal opens.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
-        color: "#d7e7f6",
+        color: "#d9e7f8",
       })
       .setOrigin(0.5);
   }
 
   private createCharacterPreview() {
-    this.add.rectangle(GAME_WIDTH / 2, 146, 292, 84, 0x10212f, 0.84).setStrokeStyle(2, 0x4f6d88, 0.65);
-    this.add.image(GAME_WIDTH / 2 - 102, 148, TEXTURE_KEYS.player).setTint(this.selectedCharacter.primaryColor).setScale(1.5);
+    this.add.rectangle(GAME_WIDTH / 2, 148, 320, 92, 0x101b2d, 0.86).setStrokeStyle(2, 0x506883, 0.7);
+    this.add.image(GAME_WIDTH / 2 - 110, 150, TEXTURE_KEYS.player).setTint(this.selectedCharacter.primaryColor).setScale(1.55);
 
     this.add
-      .text(GAME_WIDTH / 2 - 56, 124, this.selectedCharacter.name, {
+      .text(GAME_WIDTH / 2 - 60, 126, this.selectedCharacter.name, {
         fontFamily: "system-ui, sans-serif",
         fontSize: "28px",
         color: "#f7fbff",
@@ -203,35 +180,35 @@ export class Level5Scene extends Phaser.Scene {
 
     this.add
       .text(
-        GAME_WIDTH / 2 - 56,
-        154,
-        `${this.selectedCharacter.role} | Speed ${this.selectedCharacter.speed} | Lives ${getRunLives(this)}`,
+        GAME_WIDTH / 2 - 60,
+        156,
+        `${this.selectedCharacter.role} | Attack ${this.selectedCharacter.attackPower} | Lives ${getRunLives(this)}`,
         {
           fontFamily: "system-ui, sans-serif",
           fontSize: "16px",
-          color: "#bad3ea",
+          color: "#bdd0e6",
         },
       )
       .setOrigin(0, 0.5);
   }
 
   private createOptionCards() {
-    REST_OPTIONS.forEach((option, index) => {
+    UPGRADE_OPTIONS.forEach((option, index) => {
       const x = index === 0 ? GAME_WIDTH * 0.29 : GAME_WIDTH * 0.71;
-      const y = 314;
+      const y = 320;
 
-      this.add.rectangle(x, y + 10, 290, 176, 0x04070c, 0.3);
-      const glow = this.add.rectangle(x, y, 300, 186, option.accentColor, 0.12).setVisible(false);
+      this.add.rectangle(x, y + 12, 304, 194, 0x03070d, 0.34);
+      const glow = this.add.rectangle(x, y, 314, 204, option.accentColor, 0.13).setVisible(false);
       const panel = this.add
-        .rectangle(x, y, 280, 166, option.fillColor, 0.92)
-        .setStrokeStyle(2, 0x4b6275, 0.75)
+        .rectangle(x, y, 292, 182, option.fillColor, 0.94)
+        .setStrokeStyle(2, 0x4b6275, 0.8)
         .setInteractive({ useHandCursor: true });
 
-      this.add.rectangle(x, y - 64, 252, 8, option.accentColor, 0.9);
+      this.add.rectangle(x, y - 72, 258, 8, option.accentColor, 0.92);
       this.add
-        .text(x, y - 42, option.title, {
+        .text(x, y - 46, option.title, {
           fontFamily: "system-ui, sans-serif",
-          fontSize: "26px",
+          fontSize: "27px",
           color: "#f9fcff",
         })
         .setOrigin(0.5);
@@ -239,22 +216,23 @@ export class Level5Scene extends Phaser.Scene {
         .text(x, y - 6, option.summary, {
           fontFamily: "system-ui, sans-serif",
           fontSize: "18px",
-          color: "#daebf9",
+          color: "#dcedfa",
           align: "center",
+          wordWrap: { width: 226 },
         })
         .setOrigin(0.5);
       this.add
-        .text(x, y + 32, option.detail, {
+        .text(x, y + 42, option.detail, {
           fontFamily: "system-ui, sans-serif",
           fontSize: "16px",
-          color: "#bfd6e9",
+          color: "#c0d7eb",
           align: "center",
-          wordWrap: { width: 220 },
+          wordWrap: { width: 224 },
         })
         .setOrigin(0.5);
 
       const badge = this.add
-        .text(x, y + 64, "", {
+        .text(x, y + 72, option.badge, {
           fontFamily: "system-ui, sans-serif",
           fontSize: "15px",
           color: "#0d1722",
@@ -281,7 +259,7 @@ export class Level5Scene extends Phaser.Scene {
 
   private createFooter() {
     this.statusText = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 68, "Choose one reward with Left/Right, then press Enter or Space.", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 68, "Choose one upgrade with Left/Right, then press Enter or Space.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "20px",
         color: "#eef6ff",
@@ -290,7 +268,7 @@ export class Level5Scene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.footerText = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 38, "Restore sends you into Level 6. Skip jumps to Level 7.", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 38, "Triple Damage boosts boss hits. Two Clones stores a clone power-up for later.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "15px",
         color: "#b7cade",
@@ -304,6 +282,7 @@ export class Level5Scene extends Phaser.Scene {
     if (!keyboard) return;
 
     this.cursors = keyboard.createCursorKeys();
+    keyboard.addCapture([Phaser.Input.Keyboard.KeyCodes.ENTER, Phaser.Input.Keyboard.KeyCodes.SPACE]);
     this.leftKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
     this.rightKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
     this.aKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
@@ -318,11 +297,7 @@ export class Level5Scene extends Phaser.Scene {
         (this.confirmKey ? Phaser.Input.Keyboard.JustDown(this.confirmKey) : false) ||
         (this.spaceKey ? Phaser.Input.Keyboard.JustDown(this.spaceKey) : false);
       if (confirmPressed) {
-        if (this.selectedReward === "skip") {
-          this.scene.start("level-7", { characterId: this.selectedCharacter.id });
-        } else {
-          this.scene.start("level-6", { characterId: this.selectedCharacter.id });
-        }
+        this.startLevel10();
       }
       return;
     }
@@ -340,10 +315,10 @@ export class Level5Scene extends Phaser.Scene {
       (this.spaceKey ? Phaser.Input.Keyboard.JustDown(this.spaceKey) : false);
 
     if (leftPressed) {
-      this.selectedIndex = Phaser.Math.Wrap(this.selectedIndex - 1, 0, REST_OPTIONS.length);
+      this.selectedIndex = Phaser.Math.Wrap(this.selectedIndex - 1, 0, UPGRADE_OPTIONS.length);
       this.updateSelectionVisuals();
     } else if (rightPressed) {
-      this.selectedIndex = Phaser.Math.Wrap(this.selectedIndex + 1, 0, REST_OPTIONS.length);
+      this.selectedIndex = Phaser.Math.Wrap(this.selectedIndex + 1, 0, UPGRADE_OPTIONS.length);
       this.updateSelectionVisuals();
     }
 
@@ -354,13 +329,12 @@ export class Level5Scene extends Phaser.Scene {
 
   private updateSelectionVisuals() {
     this.optionCards.forEach((card, index) => {
-      const option = REST_OPTIONS[index];
+      const option = UPGRADE_OPTIONS[index];
       const isSelected = index === this.selectedIndex;
 
       card.panel.setScale(isSelected ? 1.04 : 1);
-      card.panel.setStrokeStyle(isSelected ? 4 : 2, isSelected ? option.accentColor : 0x4b6275, isSelected ? 1 : 0.75);
+      card.panel.setStrokeStyle(isSelected ? 4 : 2, isSelected ? option.accentColor : 0x4b6275, isSelected ? 1 : 0.8);
       card.glow.setVisible(isSelected);
-      card.badge.setText(card.key === "restore" ? "Play Level 6" : "Skip Level 6");
       card.badge.setColor(isSelected ? "#08121a" : "#223342");
       card.badge.setBackgroundColor(isSelected ? "#ffffff" : "#c9d8e6");
     });
@@ -370,17 +344,19 @@ export class Level5Scene extends Phaser.Scene {
     if (this.choiceLocked) return;
 
     this.choiceLocked = true;
-    const selectedOption = REST_OPTIONS[this.selectedIndex];
-    this.selectedReward = selectedOption.key;
-    this.registry.set("level5Reward", selectedOption.key);
+    const selectedOption = UPGRADE_OPTIONS[this.selectedIndex];
+    this.selectedUpgrade = selectedOption.key;
+    this.registry.set("level9Upgrade", selectedOption.key);
+    this.registry.set("level9DamageMultiplier", selectedOption.key === "triple-damage" ? 3 : 1);
+    this.registry.set("level9CloneCount", selectedOption.key === "two-clones" ? 2 : 0);
 
-    if (selectedOption.key === "restore") {
-      this.statusText.setText("Level 6 selected. Press Enter or Space to continue.");
+    if (selectedOption.key === "triple-damage") {
+      this.statusText.setText("Triple Damage locked in. Press Enter or Space for Level 10.");
     } else {
-      this.statusText.setText("Level 6 will be skipped. Press Enter or Space for Level 7.");
+      this.statusText.setText("Two Clones locked in. Press Enter or Space for Level 10.");
     }
 
-    this.footerText.setText("Route locked in. Press Enter or Space when you're ready.");
+    this.footerText.setText("Level 10 is ready. Your upgrade will carry into the boss fight.");
     this.cameras.main.flash(180, 214, 240, 255);
 
     const activeCard = this.optionCards[this.selectedIndex];
@@ -392,6 +368,18 @@ export class Level5Scene extends Phaser.Scene {
       duration: 220,
       yoyo: true,
       ease: "Sine.easeOut",
+    });
+  }
+
+  private startLevel10() {
+    if (this.transitioningToLevel10 || !this.selectedUpgrade) return;
+
+    this.transitioningToLevel10 = true;
+    this.scene.start("level-10", {
+      characterId: this.selectedCharacter.id,
+      upgrade: this.selectedUpgrade,
+      damageBonus: this.selectedUpgrade === "triple-damage" ? 3 : 1,
+      cloneCount: this.selectedUpgrade === "two-clones" ? 2 : 0,
     });
   }
 }

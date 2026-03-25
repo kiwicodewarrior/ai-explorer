@@ -8,6 +8,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
+import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
 
 type LaneConfig = {
   y: number;
@@ -41,7 +42,7 @@ const SHARK_SPAWN_ATTEMPTS = 18;
 const MIDDLE_SHARK_SPAWN_ATTEMPTS = 40;
 const MIDDLE_SHARK_MIN_X = 140;
 const MIDDLE_SHARK_MAX_X = GAME_WIDTH - 140;
-const MAX_DEATHS = 3;
+const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const LANE_COLORS = [0xff8b8b, 0xffca85, 0x9ee08f, 0x7db6ff, 0xd3a1ff];
 
 export class GameScene extends Phaser.Scene {
@@ -71,7 +72,7 @@ export class GameScene extends Phaser.Scene {
   private healthText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
-  private health = 3;
+  private livesRemaining = DEFAULT_RUN_LIVES;
   private levelStartTime = 0;
   private levelEndTime?: number;
   private isJumping = false;
@@ -93,14 +94,18 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x8fc7ff);
     this.cameras.main.fadeIn(260, 0, 0, 0);
 
-    this.selectedCharacter = this.resolveCharacter(data.characterId);
-    this.health = this.selectedCharacter.maxHealth;
-    this.outOfLives = false;
-    this.deathCount = 0;
+    const characterId = rememberRunCharacter(this, data.characterId);
+    this.selectedCharacter = this.resolveCharacter(characterId);
+    this.livesRemaining = getRunLives(this);
+    this.outOfLives = this.livesRemaining <= 0;
+    this.deathCount = MAX_DEATHS - this.livesRemaining;
     this.transitioningToLevel2 = false;
     this.levelCompleteEnterHandler = undefined;
     this.levelCompleteNumpadHandler = undefined;
     this.sectionsCleared = 0;
+    this.levelComplete = false;
+    this.levelFailed = false;
+    this.isJumping = false;
 
     this.createTextures();
     this.drawLevelOneBackground();
@@ -634,7 +639,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setPosition(GAME_WIDTH / 2, START_Y);
     this.player.setVelocity(0, 0);
     this.isJumping = false;
-    this.statusText.setText("Out of health. Press R or ENTER to retry.");
+    this.statusText.setText("Out of lives. Press ENTER to return to character select.");
   }
 
   private completeLevel() {
@@ -704,8 +709,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
-    this.healthText.setText(`Health: ${Math.max(0, this.health)} | Lives: ${livesLeft}`);
+    this.healthText.setText(`Lives: ${this.livesRemaining}`);
     const sectionLabel = this.levelComplete ? this.sectionsToClear : Math.min(this.sectionsToClear, this.sectionsCleared + 1);
     this.hudText.setText(
       `Character: ${this.selectedCharacter.name} | Section ${sectionLabel}/${this.sectionsToClear} | Speed: ${this.selectedCharacter.speed}`,
@@ -730,6 +734,10 @@ export class GameScene extends Phaser.Scene {
 
     if (this.levelFailed) {
       if (this.outOfLives) {
+        const exitPressed = this.retryKey && Phaser.Input.Keyboard.JustDown(this.retryKey);
+        if (exitPressed) {
+          this.scene.start("character-select");
+        }
         this.updateHud();
         return;
       }
@@ -830,42 +838,28 @@ export class GameScene extends Phaser.Scene {
 
   private takeDamage(message: string) {
     if (this.levelComplete || this.levelFailed) return;
-
-    this.health -= 1;
-    if (this.health <= 0) {
-      this.killPlayer("You died! Respawning at start.");
-      return;
-    }
-
-    this.player.setPosition(GAME_WIDTH / 2, START_Y);
-    this.player.setVelocity(0, 0);
-    this.isJumping = false;
-    this.statusText.setText(message);
-    this.time.delayedCall(900, () => {
-      if (!this.levelComplete && !this.levelFailed) this.statusText.setText("");
-    });
+    this.killPlayer(message);
   }
 
   private killPlayer(message: string, shakeCamera = false) {
     if (this.levelComplete || this.levelFailed) return;
 
-    this.deathCount += 1;
-    const livesLeft = Math.max(0, MAX_DEATHS - this.deathCount);
+    const livesLeft = loseRunLife(this);
+    this.livesRemaining = livesLeft;
+    this.deathCount = MAX_DEATHS - livesLeft;
 
-    if (this.deathCount >= MAX_DEATHS) {
+    if (livesLeft <= 0) {
       this.outOfLives = true;
       this.levelFailed = true;
       this.levelEndTime = this.time.now;
-      this.health = 0;
       this.stopTraffic();
       this.stopSharks();
       this.player.setVelocity(0, 0);
       this.isJumping = false;
-      this.statusText.setText("You can't play anymore. 3 deaths reached.");
+      this.statusText.setText("You can't play anymore. 10 lives used. Press ENTER.");
       return;
     }
 
-    this.health = this.selectedCharacter.maxHealth;
     this.player.setPosition(GAME_WIDTH / 2, START_Y);
     this.player.setVelocity(0, 0);
     this.isJumping = false;

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { CHARACTER_OPTIONS, type CharacterConfig, type CharacterId, GAME_HEIGHT, GAME_WIDTH } from "../config";
+import { beginRun, DEFAULT_RUN_LIVES } from "../systems/runState";
 
 type SelectCard = {
   frame: Phaser.GameObjects.Rectangle;
@@ -104,7 +105,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         .text(
           x,
           y + 62,
-          `Speed ${character.speed}\nAttack ${character.attackPower}\nHealth ${character.maxHealth}`,
+          `Speed ${character.speed}\nAttack ${character.attackPower}\nLives ${DEFAULT_RUN_LIVES}`,
           {
             fontFamily: "system-ui, sans-serif",
             fontSize: "18px",
@@ -202,6 +203,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   private startLevelOne(characterId: CharacterId) {
     if (this.transitioning) return;
     this.transitioning = true;
+    beginRun(this, characterId);
 
     this.cameras.main.fadeOut(350, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {

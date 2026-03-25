@@ -12,6 +12,8 @@ import { Level5Scene } from "./scenes/Level5Scene";
 import { Level6Scene } from "./scenes/Level6Scene";
 import { Level7Scene } from "./scenes/Level7Scene";
 import { Level8Scene } from "./scenes/Level8Scene";
+import { Level9Scene } from "./scenes/Level9Scene";
+import { Level10Scene } from "./scenes/Level10Scene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -36,5 +38,7 @@ new Phaser.Game({
     Level6Scene,
     Level7Scene,
     Level8Scene,
+    Level9Scene,
+    Level10Scene,
   ],
 });
