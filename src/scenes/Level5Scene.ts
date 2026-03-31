@@ -7,7 +7,7 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
-import { getRunLives, rememberRunCharacter } from "../systems/runState";
+import { DEFAULT_RUN_LIVES, getRunLives, rememberRunCharacter, setRunLives } from "../systems/runState";
 
 type Level5SceneData = {
   characterId?: CharacterId;
@@ -375,8 +375,11 @@ export class Level5Scene extends Phaser.Scene {
     this.registry.set("level5Reward", selectedOption.key);
 
     if (selectedOption.key === "restore") {
-      this.statusText.setText("Health restored. Press Enter or Space for Level 6.");
+      setRunLives(this, DEFAULT_RUN_LIVES);
+      this.registry.set("level5HealthRestore", DEFAULT_RUN_LIVES);
+      this.statusText.setText("Health restored to full. Press Enter or Space for Level 6.");
     } else {
+      this.registry.set("level5HealthRestore", 0);
       this.statusText.setText("Level 6 will be skipped. Press Enter or Space for Level 7.");
     }
 

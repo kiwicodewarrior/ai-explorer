@@ -42,13 +42,13 @@ const EXIT_Y = 132;
 const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 800;
 const TOTAL_CELLS = 4;
-const EXTRA_DRONE_ROWS = 6;
+const EXTRA_DRONE_ROWS = 5;
 const EXTRA_DRONE_COLUMNS = 10;
 const EXTRA_DRONE_MARGIN_X = 220;
 const EXTRA_DRONE_MARGIN_TOP = 170;
 const EXTRA_DRONE_MARGIN_BOTTOM = 150;
 const EXTRA_DRONE_ROW_STAGGER = 44;
-const DIAMOND_POOL_TIGHTEN_PER_DEATH = 4;
+const PLAYER_SPAWN_SAFE_RADIUS = 170;
 
 const TEXTURE_KEYS = {
   wall: "level4-wall",
@@ -76,23 +76,6 @@ const ENERGY_CELLS: readonly EnergyCellConfig[] = [
   { x: 1730, y: 262 },
 ] as const;
 
-const DIAMOND_POSITION_POOL: readonly EnergyCellConfig[] = [
-  { x: 240, y: 220 },
-  { x: 240, y: 940 },
-  { x: 520, y: 540 },
-  { x: 600, y: 790 },
-  { x: 680, y: 300 },
-  { x: 900, y: 120 },
-  { x: 900, y: 520 },
-  { x: 1120, y: 760 },
-  { x: 1300, y: 820 },
-  { x: 1380, y: 520 },
-  { x: 1460, y: 1010 },
-  { x: 1560, y: 180 },
-  { x: 1730, y: 262 },
-  { x: 1760, y: 520 },
-] as const;
-
 const BASE_PATROL_DRONES: readonly PatrolDroneConfig[] = [
   { x: 480, y: 220, axis: "x", travel: 180, duration: 1700 },
   { x: 690, y: 600, axis: "y", travel: 220, duration: 1600 },
@@ -105,6 +88,43 @@ const BASE_PATROL_DRONES: readonly PatrolDroneConfig[] = [
   { x: 1320, y: 180, axis: "x", travel: 170, duration: 1440 },
   { x: 1560, y: 960, axis: "x", travel: 190, duration: 1520 },
 ] as const;
+
+function getDistanceFromDronePathToPlayerSpawn(config: PatrolDroneConfig) {
+  if (config.axis === "x") {
+    const minX = config.x - config.travel;
+    const maxX = config.x + config.travel;
+    const nearestX = Phaser.Math.Clamp(PLAYER_START_X, minX, maxX);
+    return Phaser.Math.Distance.Between(nearestX, config.y, PLAYER_START_X, PLAYER_START_Y);
+  }
+
+  const minY = config.y - config.travel;
+  const maxY = config.y + config.travel;
+  const nearestY = Phaser.Math.Clamp(PLAYER_START_Y, minY, maxY);
+  return Phaser.Math.Distance.Between(config.x, nearestY, PLAYER_START_X, PLAYER_START_Y);
+}
+
+function moveDroneAwayFromPlayerSpawn(
+  config: PatrolDroneConfig,
+  xStep: number,
+  yStep: number,
+  xMin: number,
+  xMax: number,
+  yMin: number,
+  yMax: number,
+) {
+  if (getDistanceFromDronePathToPlayerSpawn(config) >= PLAYER_SPAWN_SAFE_RADIUS) {
+    return config;
+  }
+
+  const shiftedX = Phaser.Math.Clamp(config.x + Math.max(xStep, config.travel + 120), xMin, xMax);
+  const shiftedAlongX = { ...config, x: shiftedX };
+  if (getDistanceFromDronePathToPlayerSpawn(shiftedAlongX) >= PLAYER_SPAWN_SAFE_RADIUS) {
+    return shiftedAlongX;
+  }
+
+  const shiftedY = Phaser.Math.Clamp(config.y - Math.max(yStep / 2, 120), yMin, yMax);
+  return { ...shiftedAlongX, y: shiftedY };
+}
 
 function buildExtraPatrolDrones(): PatrolDroneConfig[] {
   const drones: PatrolDroneConfig[] = [];
@@ -120,14 +140,23 @@ function buildExtraPatrolDrones(): PatrolDroneConfig[] {
       const stagger = row % 2 === 0 ? 0 : EXTRA_DRONE_ROW_STAGGER;
       const x = Phaser.Math.Clamp(xMin + column * xStep + stagger, xMin, xMax);
       const y = yMin + row * yStep;
+      const config = moveDroneAwayFromPlayerSpawn(
+        {
+          x,
+          y,
+          axis: (row + column) % 2 === 0 ? "x" : "y",
+          travel: 110 + (column % 3) * 30,
+          duration: 980 + row * 40 + column * 24,
+        },
+        xStep,
+        yStep,
+        xMin,
+        xMax,
+        yMin,
+        yMax,
+      );
 
-      drones.push({
-        x,
-        y,
-        axis: (row + column) % 2 === 0 ? "x" : "y",
-        travel: 90 + (column % 3) * 25,
-        duration: 1080 + row * 45 + column * 28,
-      });
+      drones.push(config);
     }
   }
 
@@ -358,22 +387,6 @@ export class Level4Scene extends Phaser.Scene {
       cell.setDepth(14);
       cell.setScale(1.05);
       cell.refreshBody();
-      this.startCellFloatTween(cell);
-    });
-  }
-
-  private startCellFloatTween(cell: Phaser.Physics.Arcade.Image) {
-    this.tweens.add({
-      targets: cell,
-      y: cell.y - 10,
-      duration: 900 + Phaser.Math.Between(0, 250),
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.inOut",
-      onUpdate: () => {
-        if (!cell.active || !cell.body) return;
-        cell.refreshBody();
-      },
     });
   }
 
@@ -661,8 +674,7 @@ export class Level4Scene extends Phaser.Scene {
     }
 
     this.respawnPlayer();
-    this.shuffleRemainingDiamonds();
-    this.statusText.setText(`You were knocked out! Lives left: ${livesLeft}. Diamonds moved closer to the middle.`);
+    this.statusText.setText(`You were knocked out! Lives left: ${livesLeft}.`);
     this.time.delayedCall(950, () => {
       if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
     });
@@ -672,37 +684,6 @@ export class Level4Scene extends Phaser.Scene {
     this.player.setPosition(PLAYER_START_X, PLAYER_START_Y);
     this.player.setVelocity(0, 0);
     this.cameras.main.shake(100, 0.004);
-  }
-
-  private shuffleRemainingDiamonds() {
-    const activeCells = this.cells
-      .getChildren()
-      .filter((child) => (child as Phaser.Physics.Arcade.Image).active) as Phaser.Physics.Arcade.Image[];
-    if (activeCells.length === 0) return;
-
-    const centerX = WORLD_WIDTH / 2;
-    const centerY = WORLD_HEIGHT / 2;
-    const positionsByCenter = [...DIAMOND_POSITION_POOL].sort((left, right) => {
-      const leftDistance = Phaser.Math.Distance.Between(left.x, left.y, centerX, centerY);
-      const rightDistance = Phaser.Math.Distance.Between(right.x, right.y, centerX, centerY);
-      return leftDistance - rightDistance;
-    });
-    const tightenedPoolSize = Math.max(
-      activeCells.length,
-      positionsByCenter.length - (MAX_DEATHS - this.livesRemaining) * DIAMOND_POOL_TIGHTEN_PER_DEATH,
-    );
-    const candidatePool = positionsByCenter.slice(0, tightenedPoolSize);
-    const shuffledPool = Phaser.Utils.Array.Shuffle(candidatePool);
-
-    activeCells.forEach((cell, index) => {
-      const position = shuffledPool[index];
-      if (!position) return;
-
-      this.tweens.killTweensOf(cell);
-      cell.setPosition(position.x, position.y);
-      cell.refreshBody();
-      this.startCellFloatTween(cell);
-    });
   }
 
   private clearGroupSafe(group?: Phaser.Physics.Arcade.Group | Phaser.Physics.Arcade.StaticGroup) {
