@@ -7,7 +7,15 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
-import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
+import {
+  DEFAULT_RUN_LIVES,
+  getGemCount,
+  getRunLives,
+  loseRunLife,
+  rememberRunCharacter,
+  REVIVE_GEM_COST,
+  useReviveGem,
+} from "../systems/runState";
 
 type Level6SceneData = {
   characterId?: CharacterId;
@@ -65,6 +73,7 @@ export class Level6Scene extends Phaser.Scene {
   private wKey?: Phaser.Input.Keyboard.Key;
   private sKey?: Phaser.Input.Keyboard.Key;
   private confirmKey?: Phaser.Input.Keyboard.Key;
+  private reviveKey?: Phaser.Input.Keyboard.Key;
 
   private hudText!: Phaser.GameObjects.Text;
   private healthText!: Phaser.GameObjects.Text;
@@ -290,6 +299,7 @@ export class Level6Scene extends Phaser.Scene {
     this.wKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     this.sKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     this.confirmKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.reviveKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
   }
 
   private createExitPortal() {
@@ -431,6 +441,10 @@ export class Level6Scene extends Phaser.Scene {
     }
 
     if (this.levelComplete || this.outOfLives) {
+      if (this.outOfLives && this.reviveKey && Phaser.Input.Keyboard.JustDown(this.reviveKey) && useReviveGem(this)) {
+        this.scene.restart({ characterId: this.selectedCharacter.id });
+        return;
+      }
       if (this.confirmKey && (Phaser.Input.Keyboard.JustDown(this.confirmKey) || (this.levelComplete && this.confirmKey.isDown))) {
         if (this.levelComplete) {
           this.startLevel7();
@@ -544,7 +558,12 @@ export class Level6Scene extends Phaser.Scene {
       this.levelEndTime = this.time.now;
       this.player?.setVelocity(0, 0);
       this.stopGuns();
-      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
+      const gems = getGemCount(this);
+      this.statusText.setText(
+        gems >= REVIVE_GEM_COST
+          ? `Out of lives. Press R to spend 1 gem (${gems} left) and restart, or ENTER to leave.`
+          : `You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`,
+      );
       return;
     }
 

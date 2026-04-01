@@ -27,7 +27,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   private selectedText!: Phaser.GameObjects.Text;
   private gemText!: Phaser.GameObjects.Text;
   private shopStatusText!: Phaser.GameObjects.Text;
-  private shopObjects: Phaser.GameObjects.GameObject[] = [];
+  private shopObjects: Array<Phaser.GameObjects.GameObject & { setVisible(value: boolean): Phaser.GameObjects.GameObject }> = [];
   private shopButtons: Phaser.GameObjects.Rectangle[] = [];
   private shopOpen = false;
 

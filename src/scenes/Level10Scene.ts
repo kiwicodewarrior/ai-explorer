@@ -7,7 +7,16 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
-import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
+import {
+  addGems,
+  DEFAULT_RUN_LIVES,
+  getGemCount,
+  getRunLives,
+  loseRunLife,
+  rememberRunCharacter,
+  REVIVE_GEM_COST,
+  useReviveGem,
+} from "../systems/runState";
 
 type UpgradeOption = "triple-damage" | "two-clones";
 
@@ -19,7 +28,7 @@ type Level10SceneData = {
   cloneCount?: number;
 };
 
-type BossPhase = "fight" | "ending" | "victory";
+type BossPhase = "fight" | "scripted" | "postscript" | "victory";
 
 const GRAVITY_Y = 980;
 const FLOOR_HEIGHT = 64;
@@ -31,17 +40,30 @@ const PLAYER_JUMP_VELOCITY = 470;
 const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 900;
 
-const BOSS_MAX_HEALTH = 1;
+const BOSS_MAX_HEALTH = 10;
 const BOSS_X = GAME_WIDTH - 170;
 const BOSS_Y = 164;
 const ATTACK_RANGE = 220;
-const ATTACK_WINDOW_MS = 1_300;
+const ATTACK_WINDOW_MS = 2_400;
 const BOSS_ATTACK_DELAY_START_MS = 2_200;
 const BOSS_ATTACK_DELAY_MIN_MS = 850;
 const LASER_SPEED_START = 280;
 const LASER_SPEED_MAX = 450;
 const LASERS_PER_BURST = 3;
 const LASER_SPREAD_DEGREES = 32;
+const SCRIPTED_SEQUENCE_MS = 30_000;
+const BOSS_FALL_START_MS = 900;
+const THIEF_REVEAL_MS = 4_000;
+const THIEF_RUN_START_MS = 9_000;
+const THIEF_TRIP_START_MS = 16_000;
+const JAIL_SPAWN_MS = 21_000;
+const THIEF_CAPTURE_ENABLE_MS = SCRIPTED_SEQUENCE_MS;
+const THIEF_GROUND_Y = GAME_HEIGHT - FLOOR_HEIGHT - 26;
+const THIEF_REVEAL_X = BOSS_X + 28;
+const THIEF_REVEAL_Y = BOSS_Y + 10;
+const THIEF_RUN_TARGET_X = 618;
+const THIEF_JAIL_X = 548;
+const THIEF_JAIL_Y = THIEF_GROUND_Y;
 
 const PLATFORM_LAYOUT = [
   { x: 160, y: 432, width: 150, height: 22 },
@@ -72,9 +94,12 @@ export class Level10Scene extends Phaser.Scene {
 
   private bossSprite?: Phaser.GameObjects.Image;
   private bossGlow?: Phaser.GameObjects.Ellipse;
-  private thiefSprite?: Phaser.Physics.Arcade.Image;
+  private thiefSprite?: Phaser.GameObjects.Image;
   private moneySprite?: Phaser.GameObjects.Image;
   private cloneSprites: Phaser.GameObjects.Image[] = [];
+  private thiefCaptureZone?: Phaser.GameObjects.Zone;
+  private thiefFocusGlow?: Phaser.GameObjects.Ellipse;
+  private jailBars?: Phaser.GameObjects.Container;
 
   private playerPlatformCollider?: Phaser.Physics.Arcade.Collider;
   private laserOverlap?: Phaser.Physics.Arcade.Collider;
@@ -90,6 +115,7 @@ export class Level10Scene extends Phaser.Scene {
   private wKey?: Phaser.Input.Keyboard.Key;
   private attackKey?: Phaser.Input.Keyboard.Key;
   private confirmKey?: Phaser.Input.Keyboard.Key;
+  private reviveKey?: Phaser.Input.Keyboard.Key;
 
   private hudText!: Phaser.GameObjects.Text;
   private healthText!: Phaser.GameObjects.Text;
@@ -106,9 +132,17 @@ export class Level10Scene extends Phaser.Scene {
   private damageBonus = 1;
   private cloneCount = 0;
   private transitioningOut = false;
+  private bossGemAwarded = false;
+  private thiefLootAttached = false;
 
   private bossAttackTimer?: Phaser.Time.TimerEvent;
   private attackWindowTimer?: Phaser.Time.TimerEvent;
+  private scriptedTimers: Phaser.Time.TimerEvent[] = [];
+  private scriptedTweens: Phaser.Tweens.Tween[] = [];
+  private thiefNervousTween?: Phaser.Tweens.Tween;
+  private thiefRunTween?: Phaser.Tweens.Tween;
+  private thiefRunBobTween?: Phaser.Tweens.Tween;
+  private thiefSadTween?: Phaser.Tweens.Tween;
 
   constructor() {
     super("level-10");
@@ -134,9 +168,22 @@ export class Level10Scene extends Phaser.Scene {
     this.bossVulnerable = false;
     this.damageCooldownUntil = 0;
     this.transitioningOut = false;
+    this.bossGemAwarded = false;
+    this.thiefLootAttached = false;
     this.cloneSprites = [];
     this.bossAttackTimer = undefined;
     this.attackWindowTimer = undefined;
+    this.scriptedTimers = [];
+    this.scriptedTweens = [];
+    this.thiefNervousTween = undefined;
+    this.thiefRunTween = undefined;
+    this.thiefRunBobTween = undefined;
+    this.thiefSadTween = undefined;
+    this.thiefSprite = undefined;
+    this.moneySprite = undefined;
+    this.thiefCaptureZone = undefined;
+    this.thiefFocusGlow = undefined;
+    this.jailBars = undefined;
 
     this.physics.world.gravity.y = GRAVITY_Y;
     this.cameras.main.setBackgroundColor(0x0a0b12);
@@ -429,6 +476,7 @@ export class Level10Scene extends Phaser.Scene {
     this.wKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     this.attackKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     this.confirmKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.reviveKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
   }
 
   private updateHud() {
@@ -437,24 +485,48 @@ export class Level10Scene extends Phaser.Scene {
     this.healthText.setText(`Lives: ${this.livesRemaining}`);
     this.hudText.setText(`Character: ${this.selectedCharacter.name} | Attack: F | ${upgradeLabel}`);
     this.bossText.setText(
-      this.phase === "victory" ? "Boss Defeated" : this.phase === "ending" ? "Thief Found" : `Boss HP: ${this.bossHealth}/${BOSS_MAX_HEALTH}`,
+      this.phase === "victory"
+        ? "Thief Captured"
+        : this.phase === "postscript"
+          ? "Thief Jailed"
+          : this.phase === "scripted"
+            ? "Boss Defeated"
+            : `Boss HP: ${this.bossHealth}/${BOSS_MAX_HEALTH}`,
     );
   }
 
   update() {
-    if (this.outOfLives || this.phase === "ending" || this.phase === "victory") {
+    if (this.outOfLives || this.phase === "scripted" || this.phase === "victory") {
+      if (
+        this.outOfLives &&
+        this.reviveKey &&
+        Phaser.Input.Keyboard.JustDown(this.reviveKey) &&
+        useReviveGem(this)
+      ) {
+        this.scene.restart({
+          characterId: this.selectedCharacter.id,
+          upgrade: this.upgrade,
+          damageBonus: this.damageBonus,
+          cloneCount: this.cloneCount,
+        });
+        return;
+      }
       if ((this.outOfLives || this.phase === "victory") && this.confirmKey && Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
         this.leaveScene();
       }
       this.player?.setVelocity(0, 0);
       this.updateClones();
+      this.syncThiefLootPosition();
       this.updateHud();
       return;
     }
 
     this.updateMovement();
-    this.cleanupOffscreenLasers();
+    if (this.phase === "fight") {
+      this.cleanupOffscreenLasers();
+    }
     this.updateClones();
+    this.syncThiefLootPosition();
 
     if (this.phase === "fight" && this.attackKey && Phaser.Input.Keyboard.JustDown(this.attackKey)) {
       this.attemptBossAttack();
@@ -504,6 +576,76 @@ export class Level10Scene extends Phaser.Scene {
       clone.setFlipX(this.player!.flipX);
       clone.setVisible(this.phase !== "victory");
     });
+  }
+
+  private syncThiefLootPosition() {
+    if (!this.thiefLootAttached || !this.thiefSprite || !this.moneySprite) return;
+
+    const lootOffsetX = this.thiefSprite.flipX ? -22 : 22;
+    this.moneySprite.setPosition(this.thiefSprite.x + lootOffsetX, this.thiefSprite.y + 12);
+    this.moneySprite.setFlipX(this.thiefSprite.flipX);
+  }
+
+  private addScriptedTween(config: Phaser.Types.Tweens.TweenBuilderConfig) {
+    const tween = this.tweens.add(config);
+    this.scriptedTweens.push(tween);
+    return tween;
+  }
+
+  private addScriptedTimer(delay: number, callback: () => void) {
+    const timer = this.time.delayedCall(delay, callback);
+    this.scriptedTimers.push(timer);
+    return timer;
+  }
+
+  private getAudioContext() {
+    const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager & { context?: AudioContext };
+    const context = soundManager.context;
+    if (!context) return undefined;
+
+    if (context.state === "suspended") {
+      void context.resume().catch(() => undefined);
+    }
+
+    return context;
+  }
+
+  private playToneSweep(startFrequency: number, endFrequency: number, durationMs: number, type: OscillatorType, volume: number) {
+    const context = this.getAudioContext();
+    if (!context) return;
+
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    const endTime = now + durationMs / 1000;
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(startFrequency, now);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(32, endFrequency), endTime);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(endTime);
+  }
+
+  private playBossFallSound() {
+    this.playToneSweep(190, 46, 900, "sawtooth", 0.065);
+    this.playToneSweep(110, 38, 980, "triangle", 0.04);
+  }
+
+  private playTripSound() {
+    this.playToneSweep(320, 78, 420, "square", 0.045);
+    this.playToneSweep(180, 52, 540, "triangle", 0.035);
+  }
+
+  private playJailClangSound() {
+    this.playToneSweep(920, 260, 240, "square", 0.05);
+    this.playToneSweep(620, 180, 320, "triangle", 0.03);
   }
 
   private scheduleNextBossAttack(delayOverride?: number) {
@@ -673,7 +815,7 @@ export class Level10Scene extends Phaser.Scene {
     this.closeAttackWindow(false);
 
     if (this.bossHealth <= 0) {
-      this.startEndingReveal();
+      this.startBossScriptedEnding();
       return;
     }
 
@@ -702,7 +844,12 @@ export class Level10Scene extends Phaser.Scene {
       this.outOfLives = true;
       this.stopBossActions();
       this.player?.setVelocity(0, 0);
-      this.statusText.setText(`You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`);
+      const gems = getGemCount(this);
+      this.statusText.setText(
+        gems >= REVIVE_GEM_COST
+          ? `Out of lives. Press R to spend 1 gem (${gems} left) and restart, or ENTER to leave.`
+          : `You can't play anymore. ${MAX_DEATHS} lives used. Press ENTER.`,
+      );
       return;
     }
 
@@ -737,72 +884,333 @@ export class Level10Scene extends Phaser.Scene {
     });
   }
 
-  private startEndingReveal() {
-    this.phase = "ending";
+  private startBossScriptedEnding() {
+    if (this.phase !== "fight") return;
+
+    this.phase = "scripted";
     this.stopBossActions();
     this.player?.setVelocity(0, 0);
+    this.bossVulnerable = false;
+    this.thiefLootAttached = false;
 
-    this.statusText.setText("Boss defeated! The thief is asleep behind the boss with the money.");
-    this.bossSprite?.setTint(0x9ea0b0);
-    this.bossGlow?.setFillStyle(0xd6d8e4, 0.12);
-    this.bossGlow?.setAlpha(0.12);
+    if (!this.bossGemAwarded) {
+      this.bossGemAwarded = true;
+      const gemTotal = addGems(this, 1);
+      this.statusText.setText(`Boss defeated! +1 gem. The boss is falling apart. Gems: ${gemTotal}.`);
+    } else {
+      this.statusText.setText("Boss defeated! The platform is collapsing under them.");
+    }
 
-    this.moneySprite = this.add.image(BOSS_X + 58, BOSS_Y + 18, TEXTURE_KEYS.money).setDepth(13);
-    this.thiefSprite = this.physics.add.staticImage(BOSS_X + 18, BOSS_Y + 8, TEXTURE_KEYS.thief);
-    this.thiefSprite.setDepth(15);
-    this.thiefSprite.setTint(0xb5c4d6);
-    this.thiefSprite.refreshBody();
+    if (this.bossSprite && this.bossGlow) {
+      this.bossSprite.setTint(0xd8a9b8);
+      this.addScriptedTween({
+        targets: this.bossSprite,
+        angle: { from: -8, to: 10 },
+        scaleX: { from: 1.04, to: 0.96 },
+        scaleY: { from: 0.96, to: 1.06 },
+        duration: 220,
+        yoyo: true,
+        repeat: 3,
+        ease: "Sine.easeInOut",
+      });
+      this.addScriptedTween({
+        targets: this.bossGlow,
+        alpha: { from: 0.18, to: 0.42 },
+        scaleX: { from: 1, to: 1.26 },
+        scaleY: { from: 1, to: 1.16 },
+        duration: 220,
+        yoyo: true,
+        repeat: 3,
+        ease: "Sine.easeInOut",
+      });
 
-    const endingShade = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x06070d, 0.44).setDepth(24);
-    const endingTitle = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 36, "Ending", {
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "34px",
-        color: "#fff3cf",
-        stroke: "#0a0b12",
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5)
-      .setDepth(25);
-    const endingText = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 16, "The thief was sleeping behind the boss with the money.\nYou catch the thief and recover it all.", {
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "22px",
-        color: "#eef6ff",
-        align: "center",
-      })
-      .setOrigin(0.5)
-      .setDepth(25);
+      this.addScriptedTimer(BOSS_FALL_START_MS, () => {
+        if (!this.bossSprite || !this.bossGlow) return;
 
-    endingShade.setAlpha(0);
-    endingTitle.setAlpha(0);
-    endingText.setAlpha(0);
+        this.statusText.setText("The boss gets pushed backward and tumbles off the platform!");
+        this.playBossFallSound();
 
-    this.tweens.add({
-      targets: [endingShade, endingTitle, endingText],
+        this.addScriptedTween({
+          targets: this.bossSprite,
+          x: BOSS_X + 82,
+          y: BOSS_Y - 12,
+          angle: 20,
+          duration: 650,
+          ease: "Back.easeIn",
+        });
+        this.addScriptedTween({
+          targets: this.bossGlow,
+          x: BOSS_X + 74,
+          y: BOSS_Y + 26,
+          alpha: 0.28,
+          duration: 650,
+          ease: "Sine.easeIn",
+        });
+        this.addScriptedTween({
+          targets: this.bossSprite,
+          x: GAME_WIDTH + 170,
+          y: GAME_HEIGHT + 160,
+          angle: 164,
+          alpha: 0.08,
+          scaleX: 0.82,
+          scaleY: 0.82,
+          duration: THIEF_REVEAL_MS - BOSS_FALL_START_MS,
+          delay: 650,
+          ease: "Quad.easeIn",
+        });
+        this.addScriptedTween({
+          targets: this.bossGlow,
+          x: GAME_WIDTH + 120,
+          y: GAME_HEIGHT + 150,
+          alpha: 0,
+          scaleX: 0.25,
+          scaleY: 0.25,
+          duration: THIEF_REVEAL_MS - BOSS_FALL_START_MS,
+          delay: 650,
+          ease: "Quad.easeIn",
+        });
+      });
+    }
+
+    this.addScriptedTimer(THIEF_REVEAL_MS, () => this.revealThiefBehindBoss());
+    this.addScriptedTimer(THIEF_RUN_START_MS, () => this.startThiefPanicRun());
+    this.addScriptedTimer(THIEF_TRIP_START_MS, () => this.tripThiefToGround());
+    this.addScriptedTimer(JAIL_SPAWN_MS, () => this.spawnJailAroundThief());
+    this.addScriptedTimer(THIEF_CAPTURE_ENABLE_MS, () => this.enablePostscriptControl());
+  }
+
+  private revealThiefBehindBoss() {
+    if (this.phase !== "scripted") return;
+
+    if (!this.thiefFocusGlow) {
+      this.thiefFocusGlow = this.add.ellipse(THIEF_REVEAL_X, THIEF_REVEAL_Y + 8, 128, 74, 0xffd97a, 0.12).setDepth(12);
+      this.thiefFocusGlow.setAlpha(0);
+    }
+    if (!this.moneySprite) {
+      this.moneySprite = this.add.image(THIEF_REVEAL_X + 22, THIEF_REVEAL_Y + 12, TEXTURE_KEYS.money).setDepth(13);
+      this.moneySprite.setAlpha(0);
+    }
+    if (!this.thiefSprite) {
+      this.thiefSprite = this.add.image(THIEF_REVEAL_X, THIEF_REVEAL_Y, TEXTURE_KEYS.thief).setDepth(15);
+      this.thiefSprite.setAlpha(0);
+    }
+
+    this.thiefSprite.setPosition(THIEF_REVEAL_X, THIEF_REVEAL_Y);
+    this.thiefSprite.setTint(0xc8d2e6);
+    this.thiefSprite.setAngle(0);
+    this.thiefSprite.setScale(1);
+    this.thiefSprite.setFlipX(false);
+    this.moneySprite.setAlpha(0);
+    this.thiefLootAttached = true;
+    this.syncThiefLootPosition();
+
+    this.statusText.setText("A thief is revealed behind the boss, clutching the money and shaking.");
+
+    this.addScriptedTween({
+      targets: [this.thiefSprite, this.moneySprite, this.thiefFocusGlow],
       alpha: 1,
-      duration: 320,
+      duration: 500,
       ease: "Sine.easeOut",
     });
+    this.addScriptedTween({
+      targets: this.thiefFocusGlow,
+      scaleX: { from: 0.92, to: 1.08 },
+      scaleY: { from: 0.88, to: 1.14 },
+      alpha: { from: 0.16, to: 0.28 },
+      duration: 720,
+      yoyo: true,
+      repeat: 5,
+      ease: "Sine.easeInOut",
+    });
 
-    this.time.delayedCall(1200, () => {
+    if (this.thiefNervousTween) {
+      this.thiefNervousTween.remove();
+    }
+    this.thiefNervousTween = this.addScriptedTween({
+      targets: this.thiefSprite,
+      x: { from: THIEF_REVEAL_X - 5, to: THIEF_REVEAL_X + 5 },
+      angle: { from: -6, to: 7 },
+      duration: 150,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+      onUpdate: () => this.syncThiefLootPosition(),
+    });
+  }
+
+  private startThiefPanicRun() {
+    if (this.phase !== "scripted" || !this.thiefSprite) return;
+
+    this.thiefNervousTween?.remove();
+    this.thiefNervousTween = undefined;
+    this.thiefSprite.setFlipX(true);
+    this.thiefSprite.setAngle(0);
+    this.thiefSprite.setTint(0xe5edf7);
+    this.statusText.setText("The thief panics, turns, and sprints away with the money.");
+
+    this.thiefRunBobTween?.remove();
+    this.thiefRunBobTween = this.addScriptedTween({
+      targets: this.thiefSprite,
+      y: THIEF_REVEAL_Y - 7,
+      duration: 180,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+      onUpdate: () => this.syncThiefLootPosition(),
+    });
+    this.thiefRunTween?.remove();
+    this.thiefRunTween = this.addScriptedTween({
+      targets: this.thiefSprite,
+      x: THIEF_RUN_TARGET_X,
+      duration: THIEF_TRIP_START_MS - THIEF_RUN_START_MS,
+      ease: "Linear",
+      onUpdate: () => {
+        this.syncThiefLootPosition();
+        this.thiefFocusGlow?.setPosition(this.thiefSprite!.x, this.thiefSprite!.y + 8);
+      },
+    });
+    this.addScriptedTween({
+      targets: this.thiefFocusGlow,
+      x: THIEF_RUN_TARGET_X,
+      duration: THIEF_TRIP_START_MS - THIEF_RUN_START_MS,
+      ease: "Linear",
+    });
+  }
+
+  private tripThiefToGround() {
+    if (this.phase !== "scripted" || !this.thiefSprite) return;
+
+    this.thiefRunTween?.remove();
+    this.thiefRunTween = undefined;
+    this.thiefRunBobTween?.remove();
+    this.thiefRunBobTween = undefined;
+    this.thiefLootAttached = false;
+    this.statusText.setText("The thief trips, loses balance, and crashes to the ground.");
+    this.playTripSound();
+
+    this.addScriptedTween({
+      targets: this.thiefSprite,
+      x: THIEF_JAIL_X,
+      y: THIEF_GROUND_Y + 20,
+      angle: 98,
+      duration: JAIL_SPAWN_MS - THIEF_TRIP_START_MS,
+      ease: "Quad.easeIn",
+    });
+    if (this.moneySprite) {
+      this.addScriptedTween({
+        targets: this.moneySprite,
+        x: THIEF_JAIL_X + 34,
+        y: THIEF_GROUND_Y + 16,
+        angle: 132,
+        duration: JAIL_SPAWN_MS - THIEF_TRIP_START_MS,
+        ease: "Quad.easeIn",
+      });
+    }
+    if (this.thiefFocusGlow) {
+      this.addScriptedTween({
+        targets: this.thiefFocusGlow,
+        x: THIEF_JAIL_X,
+        y: THIEF_GROUND_Y + 24,
+        alpha: 0.14,
+        duration: JAIL_SPAWN_MS - THIEF_TRIP_START_MS,
+        ease: "Quad.easeIn",
+      });
+    }
+  }
+
+  private spawnJailAroundThief() {
+    if (this.phase !== "scripted" || !this.thiefSprite) return;
+
+    this.statusText.setText("Jail bars slam down around the thief.");
+    this.playJailClangSound();
+
+    this.thiefSprite.setPosition(THIEF_JAIL_X, THIEF_JAIL_Y);
+    this.thiefSprite.setAngle(-9);
+    this.thiefSprite.setScale(0.95, 0.9);
+    this.thiefSprite.setTint(0x95a0b7);
+    if (this.moneySprite) {
+      this.moneySprite.setPosition(THIEF_JAIL_X + 34, THIEF_JAIL_Y + 16);
+      this.moneySprite.setAngle(16);
+      this.moneySprite.setScale(0.94);
+    }
+
+    if (!this.jailBars) {
+      const bars: Phaser.GameObjects.Rectangle[] = [];
+      bars.push(this.add.rectangle(0, -36, 88, 10, 0x8897aa, 0.95));
+      bars.push(this.add.rectangle(0, 34, 88, 10, 0x5a6779, 0.95));
+      [-30, -15, 0, 15, 30].forEach((x) => {
+        bars.push(this.add.rectangle(x, -2, 8, 70, 0xa8b6c8, 0.96));
+      });
+      this.jailBars = this.add.container(THIEF_JAIL_X, THIEF_JAIL_Y - 2, bars).setDepth(17);
+    }
+
+    this.jailBars.setPosition(THIEF_JAIL_X, THIEF_JAIL_Y - 2);
+    this.jailBars.setAlpha(0);
+    this.jailBars.setScale(0.86, 0.2);
+    this.addScriptedTween({
+      targets: this.jailBars,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 650,
+      ease: "Back.easeOut",
+    });
+
+    this.thiefSadTween?.remove();
+    this.thiefSadTween = this.addScriptedTween({
+      targets: this.thiefSprite,
+      y: THIEF_JAIL_Y + 4,
+      angle: -4,
+      duration: 850,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private enablePostscriptControl() {
+    if (this.phase !== "scripted") return;
+
+    this.phase = "postscript";
+    this.createThiefCaptureZone();
+    this.statusText.setText("The thief is trapped. Walk over and secure the arrest.");
+    this.cameras.main.flash(180, 214, 255, 230, false);
+  }
+
+  private createThiefCaptureZone() {
+    if (!this.player) return;
+
+    if (!this.thiefCaptureZone) {
+      this.thiefCaptureZone = this.add.zone(THIEF_JAIL_X, THIEF_JAIL_Y, 120, 88).setDepth(14);
+      this.physics.add.existing(this.thiefCaptureZone, true);
+    } else {
+      this.thiefCaptureZone.setPosition(THIEF_JAIL_X, THIEF_JAIL_Y);
+      const body = this.thiefCaptureZone.body as Phaser.Physics.Arcade.StaticBody | undefined;
+      body?.updateFromGameObject();
+    }
+
+    if (this.thiefOverlap) {
+      this.thiefOverlap.destroy();
+    }
+    this.thiefOverlap = this.physics.add.overlap(this.player, this.thiefCaptureZone, () => {
       this.captureThief();
     });
   }
 
   private captureThief() {
-    if (this.phase !== "ending") return;
+    if (this.phase !== "postscript") return;
 
     this.phase = "victory";
-    this.stopBossActions();
     this.player?.setVelocity(0, 0);
-    if (this.thiefOverlap) {
-      this.thiefOverlap.destroy();
-      this.thiefOverlap = undefined;
-    }
-    this.statusText.setText("You caught the thief and recovered the money! Press ENTER.");
+    this.thiefOverlap?.destroy();
+    this.thiefOverlap = undefined;
+    this.thiefSadTween?.remove();
+    this.thiefSadTween = undefined;
     this.thiefSprite?.setTint(0x7ae582);
+    this.thiefSprite?.setAngle(0);
+    this.thiefSprite?.setScale(0.96, 0.92);
     this.moneySprite?.setScale(1.08);
+    this.statusText.setText("The thief is jailed and the money is recovered! Press ENTER.");
     this.cameras.main.flash(200, 214, 255, 225, false);
   }
 
@@ -813,6 +1221,19 @@ export class Level10Scene extends Phaser.Scene {
     }
     this.closeAttackWindow(false);
     this.clearActiveLasers();
+  }
+
+  private clearScriptedSequence() {
+    this.scriptedTimers.forEach((timer) => timer.remove(false));
+    this.scriptedTimers = [];
+
+    this.scriptedTweens.forEach((tween) => tween.remove());
+    this.scriptedTweens = [];
+
+    this.thiefNervousTween = undefined;
+    this.thiefRunTween = undefined;
+    this.thiefRunBobTween = undefined;
+    this.thiefSadTween = undefined;
   }
 
   private leaveScene() {
@@ -844,6 +1265,7 @@ export class Level10Scene extends Phaser.Scene {
 
   private cleanupScene() {
     this.stopBossActions();
+    this.clearScriptedSequence();
 
     if (this.playerPlatformCollider) {
       this.playerPlatformCollider.destroy();
@@ -862,6 +1284,12 @@ export class Level10Scene extends Phaser.Scene {
     this.clearGroupSafe(this.platforms);
     this.bossSprite?.destroy();
     this.bossGlow?.destroy();
+    this.thiefCaptureZone?.destroy();
+    this.thiefCaptureZone = undefined;
+    this.thiefFocusGlow?.destroy();
+    this.thiefFocusGlow = undefined;
+    this.jailBars?.destroy();
+    this.jailBars = undefined;
     this.thiefSprite?.destroy();
     this.moneySprite?.destroy();
     this.cloneSprites.forEach((clone) => clone.destroy());

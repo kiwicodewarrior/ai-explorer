@@ -8,7 +8,15 @@ import {
   type CharacterConfig,
   type CharacterId,
 } from "../config";
-import { DEFAULT_RUN_LIVES, getRunLives, loseRunLife, rememberRunCharacter } from "../systems/runState";
+import {
+  DEFAULT_RUN_LIVES,
+  getGemCount,
+  getRunLives,
+  loseRunLife,
+  rememberRunCharacter,
+  REVIVE_GEM_COST,
+  useReviveGem,
+} from "../systems/runState";
 
 type LaneConfig = {
   y: number;
@@ -734,6 +742,11 @@ export class GameScene extends Phaser.Scene {
 
     if (this.levelFailed) {
       if (this.outOfLives) {
+        const revivePressed = this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey);
+        if (revivePressed && useReviveGem(this)) {
+          this.scene.restart({ characterId: this.selectedCharacter.id });
+          return;
+        }
         const exitPressed = this.retryKey && Phaser.Input.Keyboard.JustDown(this.retryKey);
         if (exitPressed) {
           this.scene.start("character-select");
@@ -856,7 +869,12 @@ export class GameScene extends Phaser.Scene {
       this.stopSharks();
       this.player.setVelocity(0, 0);
       this.isJumping = false;
-      this.statusText.setText("You can't play anymore. 10 lives used. Press ENTER.");
+      const gems = getGemCount(this);
+      this.statusText.setText(
+        gems >= REVIVE_GEM_COST
+          ? `Out of lives. Press R to spend 1 gem (${gems} left) and restart, or ENTER to leave.`
+          : "You can't play anymore. 10 lives used. Press ENTER.",
+      );
       return;
     }
 
