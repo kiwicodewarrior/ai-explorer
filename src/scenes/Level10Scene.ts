@@ -9,6 +9,8 @@ import {
 } from "../config";
 import {
   addGems,
+  finalizeCompletedRun,
+  type CompletedRunSummary,
   DEFAULT_RUN_LIVES,
   getGemCount,
   getRunLives,
@@ -40,7 +42,7 @@ const PLAYER_JUMP_VELOCITY = 470;
 const MAX_DEATHS = DEFAULT_RUN_LIVES;
 const HIT_INVULN_MS = 900;
 
-const BOSS_MAX_HEALTH = 10;
+const BOSS_MAX_HEALTH = 30;
 const BOSS_X = GAME_WIDTH - 170;
 const BOSS_Y = 164;
 const ATTACK_RANGE = 220;
@@ -134,6 +136,7 @@ export class Level10Scene extends Phaser.Scene {
   private transitioningOut = false;
   private bossGemAwarded = false;
   private thiefLootAttached = false;
+  private finalRunSummary?: CompletedRunSummary;
 
   private bossAttackTimer?: Phaser.Time.TimerEvent;
   private attackWindowTimer?: Phaser.Time.TimerEvent;
@@ -170,6 +173,7 @@ export class Level10Scene extends Phaser.Scene {
     this.transitioningOut = false;
     this.bossGemAwarded = false;
     this.thiefLootAttached = false;
+    this.finalRunSummary = undefined;
     this.cloneSprites = [];
     this.bossAttackTimer = undefined;
     this.attackWindowTimer = undefined;
@@ -1201,6 +1205,7 @@ export class Level10Scene extends Phaser.Scene {
     if (this.phase !== "postscript") return;
 
     this.phase = "victory";
+    this.finalRunSummary = this.finalRunSummary ?? finalizeCompletedRun(this);
     this.player?.setVelocity(0, 0);
     this.thiefOverlap?.destroy();
     this.thiefOverlap = undefined;
@@ -1210,8 +1215,13 @@ export class Level10Scene extends Phaser.Scene {
     this.thiefSprite?.setAngle(0);
     this.thiefSprite?.setScale(0.96, 0.92);
     this.moneySprite?.setScale(1.08);
-    this.statusText.setText("The thief is jailed and the money is recovered! Press ENTER.");
+    this.statusText.setText("The thief is jailed and the money is recovered!");
     this.cameras.main.flash(200, 214, 255, 225, false);
+    this.time.delayedCall(1100, () => {
+      if (this.phase === "victory") {
+        this.leaveScene();
+      }
+    });
   }
 
   private stopBossActions() {
@@ -1239,6 +1249,18 @@ export class Level10Scene extends Phaser.Scene {
   private leaveScene() {
     if (this.transitioningOut) return;
     this.transitioningOut = true;
+
+    if (this.phase === "victory") {
+      const summary = this.finalRunSummary ?? finalizeCompletedRun(this);
+      this.scene.start("final-time", {
+        characterId: this.selectedCharacter.id,
+        elapsedMs: summary.elapsedMs,
+        bestMs: summary.bestMs,
+        isNewRecord: summary.isNewRecord,
+      });
+      return;
+    }
+
     this.scene.start("character-select");
   }
 

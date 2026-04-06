@@ -45,9 +45,10 @@ const BASE_MOVE_SPEED = 235;
 const BASE_JUMP_VELOCITY = 470;
 const GROUND_HEIGHT = 56;
 const GROUND_Y = GAME_HEIGHT - GROUND_HEIGHT / 2;
-const START_X = 120;
+const START_X = 260;
 const START_Y = GAME_HEIGHT - GROUND_HEIGHT - 34;
-const BARREL_SPAWN_MS = 2_000;
+const START_LOCK_MS = 8_000;
+const BARREL_SPAWN_MS = 1_750;
 const BARREL_SPEED_MIN = 190;
 const BARREL_SPEED_MAX = 250;
 const BARREL_SPAWNERS: readonly BarrelSpawnerConfig[] = [
@@ -143,8 +144,8 @@ export class Level7Scene extends Phaser.Scene {
     this.bindInput();
     this.updateHud();
 
-    this.statusText.setText("Reach the barrel maker while dodging the rolling barrels.");
-    this.time.delayedCall(1800, () => {
+    this.statusText.setText("Get ready. Movement unlocks after 8 seconds.");
+    this.time.delayedCall(START_LOCK_MS, () => {
       if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
     });
 
@@ -450,9 +451,17 @@ export class Level7Scene extends Phaser.Scene {
       return;
     }
 
-    this.updateMovement();
+    if (this.isMovementLocked()) {
+      this.player.setVelocityX(0);
+    } else {
+      this.updateMovement();
+    }
     this.updateBarrels();
     this.updateHud();
+  }
+
+  private isMovementLocked() {
+    return this.time.now - this.levelStartTime < START_LOCK_MS;
   }
 
   private updateMovement() {
@@ -511,7 +520,6 @@ export class Level7Scene extends Phaser.Scene {
     if (this.levelComplete || this.outOfLives) return;
     if (this.time.now < this.damageCooldownUntil) return;
 
-    barrel.destroy();
     this.damageCooldownUntil = this.time.now + HIT_INVULN_MS;
     const livesLeft = loseRunLife(this);
     this.livesRemaining = livesLeft;
@@ -540,7 +548,6 @@ export class Level7Scene extends Phaser.Scene {
   private resetAfterHit() {
     this.player.setPosition(START_X, START_Y);
     this.player.setVelocity(0, 0);
-    this.clearActiveBarrels();
     this.cameras.main.shake(90, 0.004);
   }
 
@@ -569,12 +576,6 @@ export class Level7Scene extends Phaser.Scene {
     this.getGroupChildrenSafe(this.barrels).forEach((child) => {
       const barrel = child as Phaser.Physics.Arcade.Image;
       barrel.setVelocity(0, 0);
-    });
-  }
-
-  private clearActiveBarrels() {
-    this.getGroupChildrenSafe(this.barrels).forEach((child) => {
-      child.destroy();
     });
   }
 

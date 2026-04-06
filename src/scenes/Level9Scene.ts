@@ -52,7 +52,7 @@ export class Level9Scene extends Phaser.Scene {
   private selectedCharacter!: CharacterConfig;
   private selectedIndex = 0;
   private choiceLocked = false;
-  private transitioningToLevel10 = false;
+  private transitioningToGravityLevel = false;
   private selectedUpgrade?: UpgradeOption;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -76,7 +76,7 @@ export class Level9Scene extends Phaser.Scene {
     this.selectedCharacter = this.resolveCharacter(characterId);
     this.selectedIndex = 0;
     this.choiceLocked = false;
-    this.transitioningToLevel10 = false;
+    this.transitioningToGravityLevel = false;
     this.selectedUpgrade = undefined;
     this.optionCards = [];
 
@@ -297,7 +297,7 @@ export class Level9Scene extends Phaser.Scene {
         (this.confirmKey ? Phaser.Input.Keyboard.JustDown(this.confirmKey) : false) ||
         (this.spaceKey ? Phaser.Input.Keyboard.JustDown(this.spaceKey) : false);
       if (confirmPressed) {
-        this.startLevel10();
+        this.startGravityLevel();
       }
       return;
     }
@@ -351,12 +351,12 @@ export class Level9Scene extends Phaser.Scene {
     this.registry.set("level9CloneCount", selectedOption.key === "two-clones" ? 2 : 0);
 
     if (selectedOption.key === "triple-damage") {
-      this.statusText.setText("Triple Damage locked in. Press Enter or Space for Level 10.");
+      this.statusText.setText("Triple Damage locked in. Press Enter or Space for the gravity level.");
     } else {
-      this.statusText.setText("Two Clones locked in. Press Enter or Space for Level 10.");
+      this.statusText.setText("Two Clones locked in. Press Enter or Space for the gravity level.");
     }
 
-    this.footerText.setText("Level 10 is ready. Your upgrade will carry into the boss fight.");
+    this.footerText.setText("The gravity gate opens first. Your upgrade will carry into the boss fight.");
     this.cameras.main.flash(180, 214, 240, 255);
 
     const activeCard = this.optionCards[this.selectedIndex];
@@ -371,11 +371,11 @@ export class Level9Scene extends Phaser.Scene {
     });
   }
 
-  private startLevel10() {
-    if (this.transitioningToLevel10 || !this.selectedUpgrade) return;
+  private startGravityLevel() {
+    if (this.transitioningToGravityLevel || !this.selectedUpgrade) return;
 
-    this.transitioningToLevel10 = true;
-    this.scene.start("level-10", {
+    this.transitioningToGravityLevel = true;
+    this.scene.start("gravity-flip", {
       characterId: this.selectedCharacter.id,
       upgrade: this.selectedUpgrade,
       damageBonus: this.selectedUpgrade === "triple-damage" ? 3 : 1,

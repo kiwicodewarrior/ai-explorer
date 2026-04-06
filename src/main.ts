@@ -3,7 +3,9 @@ import "./style.css";
 import { GAME_HEIGHT, GAME_WIDTH } from "./config";
 import { BootScene } from "./scenes/BootScene";
 import { CharacterSelectScene } from "./scenes/CharacterSelectScene";
+import { FinalTimeScene } from "./scenes/FinalTimeScene";
 import { GameScene } from "./scenes/GameScene";
+import { GravityFlipScene } from "./scenes/GravityFlipScene";
 import { IntroScene } from "./scenes/IntroScene";
 import { Level2Scene } from "./scenes/Level2Scene";
 import { Level3Scene } from "./scenes/Level3Scene";
@@ -14,6 +16,7 @@ import { Level7Scene } from "./scenes/Level7Scene";
 import { Level8Scene } from "./scenes/Level8Scene";
 import { Level9Scene } from "./scenes/Level9Scene";
 import { Level10Scene } from "./scenes/Level10Scene";
+import { RisingWaterScene } from "./scenes/RisingWaterScene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -30,7 +33,10 @@ new Phaser.Game({
     BootScene,
     IntroScene,
     CharacterSelectScene,
+    FinalTimeScene,
     GameScene,
+    GravityFlipScene,
+    RisingWaterScene,
     Level2Scene,
     Level3Scene,
     Level4Scene,
