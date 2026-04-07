@@ -44,28 +44,30 @@ const PLAYER_SPEED = 235;
 const PLAYER_JUMP_VELOCITY = 462;
 const GRAVITY_Y = 980;
 const HIT_INVULN_MS = 900;
+const START_INVULN_MS = 4_000;
 const WATER_START_HEIGHT = 120;
-const WATER_RISE_SPEED = 28;
+const WATER_RISE_SPEED = 50;
 const WATER_RESPITE_MS = 1200;
 const MAX_DEATHS = DEFAULT_RUN_LIVES;
 
 const PLATFORM_LAYOUT: readonly PlatformConfig[] = [
   { x: 176, y: 1568, width: 196, height: 22 },
-  { x: 316, y: 1504, width: 172, height: 22 },
-  { x: 472, y: 1440, width: 176, height: 22 },
-  { x: 624, y: 1374, width: 178, height: 22 },
-  { x: 566, y: 1306, width: 152, height: 22 },
-  { x: 432, y: 1238, width: 156, height: 22 },
-  { x: 292, y: 1168, width: 168, height: 22 },
-  { x: 404, y: 1096, width: 140, height: 22 },
-  { x: 558, y: 1024, width: 154, height: 22 },
-  { x: 694, y: 948, width: 150, height: 22 },
-  { x: 612, y: 872, width: 160, height: 22 },
-  { x: 474, y: 794, width: 152, height: 22 },
-  { x: 332, y: 716, width: 176, height: 22 },
-  { x: 454, y: 636, width: 144, height: 22 },
-  { x: 596, y: 554, width: 160, height: 22 },
-  { x: 720, y: 472, width: 140, height: 22 },
+  { x: 316, y: 1480, width: 172, height: 22 },
+  { x: 470, y: 1392, width: 176, height: 22 },
+  { x: 618, y: 1304, width: 178, height: 22 },
+  { x: 548, y: 1216, width: 156, height: 22 },
+  { x: 404, y: 1128, width: 164, height: 22 },
+  { x: 266, y: 1040, width: 168, height: 22 },
+  { x: 392, y: 952, width: 146, height: 22 },
+  { x: 548, y: 864, width: 156, height: 22 },
+  { x: 700, y: 776, width: 156, height: 22 },
+  { x: 586, y: 688, width: 160, height: 22 },
+  { x: 434, y: 600, width: 152, height: 22 },
+  { x: 296, y: 512, width: 168, height: 22 },
+  { x: 418, y: 424, width: 150, height: 22 },
+  { x: 572, y: 336, width: 160, height: 22 },
+  { x: 718, y: 248, width: 144, height: 22 },
+  { x: 830, y: 172, width: 136, height: 22 },
 ] as const;
 
 const TEXTURE_KEYS = {
@@ -106,7 +108,7 @@ export class RisingWaterScene extends Phaser.Scene {
   private livesRemaining = DEFAULT_RUN_LIVES;
   private outOfLives = false;
   private levelComplete = false;
-  private transitioningToBoss = false;
+  private transitioningToNextLevel = false;
   private damageCooldownUntil = 0;
   private levelStartTime = 0;
   private levelEndTime?: number;
@@ -126,8 +128,8 @@ export class RisingWaterScene extends Phaser.Scene {
     this.livesRemaining = getRunLives(this);
     this.outOfLives = this.livesRemaining <= 0;
     this.levelComplete = false;
-    this.transitioningToBoss = false;
-    this.damageCooldownUntil = 0;
+    this.transitioningToNextLevel = false;
+    this.damageCooldownUntil = this.time.now + START_INVULN_MS;
     this.levelStartTime = this.time.now;
     this.levelEndTime = undefined;
     this.waterRiseStartTime = this.time.now + WATER_RESPITE_MS;
@@ -161,7 +163,7 @@ export class RisingWaterScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.08, 0.1);
     this.cameras.main.setDeadzone(220, 140);
 
-    this.statusText.setText("Climb the ruins before the water catches you.");
+    this.statusText.setText("Climb the ruins before the water catches you. You start with 4 seconds of invincibility.");
     this.time.delayedCall(2200, () => {
       if (!this.levelComplete && !this.outOfLives) this.statusText.setText("");
     });
@@ -267,7 +269,7 @@ export class RisingWaterScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH / 2, 58, "Climb fast, time your jumps, and beat the flood.", {
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: "system-ui, roboto",
         fontSize: "18px",
         color: "#dceaf8",
       })
@@ -396,7 +398,7 @@ export class RisingWaterScene extends Phaser.Scene {
   update() {
     if (this.levelComplete) {
       if (this.confirmKey && (Phaser.Input.Keyboard.JustDown(this.confirmKey) || this.confirmKey.isDown)) {
-        this.startBossArena();
+        this.startNextLevel();
       }
       this.player.setVelocityX(0);
       this.updateWaterVisuals(this.getWaterHeightAt(this.levelEndTime ?? this.time.now));
@@ -525,7 +527,7 @@ export class RisingWaterScene extends Phaser.Scene {
     this.levelComplete = true;
     this.levelEndTime = this.time.now;
     this.player.setVelocityX(0);
-    this.statusText.setText("Rising Water complete! Press ENTER for the boss arena.");
+    this.statusText.setText("Rising Water complete! Press ENTER for the light / shadow maze.");
     this.cameras.main.flash(180, 220, 255, 235, false);
   }
 
@@ -538,11 +540,11 @@ export class RisingWaterScene extends Phaser.Scene {
     this.hudText.setText(`Character: ${this.selectedCharacter.name} | Time: ${(elapsedMs / 1000).toFixed(1)}s`);
   }
 
-  private startBossArena() {
-    if (this.transitioningToBoss) return;
+  private startNextLevel() {
+    if (this.transitioningToNextLevel) return;
 
-    this.transitioningToBoss = true;
-    this.scene.start("level-10", {
+    this.transitioningToNextLevel = true;
+    this.scene.start("light-shadow", {
       characterId: this.selectedCharacter.id,
       upgrade: this.upgrade,
       damageBonus: this.damageBonus,

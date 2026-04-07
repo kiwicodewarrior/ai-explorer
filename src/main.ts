@@ -16,6 +16,7 @@ import { Level7Scene } from "./scenes/Level7Scene";
 import { Level8Scene } from "./scenes/Level8Scene";
 import { Level9Scene } from "./scenes/Level9Scene";
 import { Level10Scene } from "./scenes/Level10Scene";
+import { LightShadowScene } from "./scenes/LightShadowScene";
 import { RisingWaterScene } from "./scenes/RisingWaterScene";
 
 new Phaser.Game({
@@ -45,6 +46,7 @@ new Phaser.Game({
     Level7Scene,
     Level8Scene,
     Level9Scene,
+    LightShadowScene,
     Level10Scene,
   ],
 });
