@@ -535,7 +535,7 @@ export class LightShadowScene extends Phaser.Scene {
   update() {
     if (this.levelComplete) {
       if (this.confirmKey && (Phaser.Input.Keyboard.JustDown(this.confirmKey) || this.confirmKey.isDown)) {
-        this.startBossArena();
+        this.startNextLevel();
       }
       this.player.setVelocityX(0);
       this.updateHazards();
@@ -696,15 +696,15 @@ export class LightShadowScene extends Phaser.Scene {
 
     this.levelComplete = true;
     this.player.setVelocityX(0);
-    this.statusText.setText("Light / Shadow complete! Press ENTER for the boss arena.");
+    this.statusText.setText("Light / Shadow complete! Press ENTER for the Time Loop.");
     this.cameras.main.flash(180, 220, 255, 235, false);
   }
 
-  private startBossArena() {
+  private startNextLevel() {
     if (this.transitioningToBoss) return;
 
     this.transitioningToBoss = true;
-    this.scene.start("level-10", {
+    this.scene.start("time-loop", {
       characterId: this.selectedCharacter.id,
       upgrade: this.upgrade,
       damageBonus: this.damageBonus,

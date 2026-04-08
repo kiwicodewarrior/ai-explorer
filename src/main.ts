@@ -18,6 +18,7 @@ import { Level9Scene } from "./scenes/Level9Scene";
 import { Level10Scene } from "./scenes/Level10Scene";
 import { LightShadowScene } from "./scenes/LightShadowScene";
 import { RisingWaterScene } from "./scenes/RisingWaterScene";
+import { TimeLoopScene } from "./scenes/TimeLoopScene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -47,6 +48,7 @@ new Phaser.Game({
     Level8Scene,
     Level9Scene,
     LightShadowScene,
+    TimeLoopScene,
     Level10Scene,
   ],
 });
