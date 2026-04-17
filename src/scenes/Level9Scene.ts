@@ -148,22 +148,24 @@ export class Level9Scene extends Phaser.Scene {
 
   private createHeader() {
     this.add
-      .text(GAME_WIDTH / 2, 30, "Level 9: Power Upgrade", {
+      .text(GAME_WIDTH / 2, 36, "Level 9: Power Upgrade", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f7fbff",
         stroke: "#08111a",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 62, "Choose one boss power-up before the final portal opens.", {
+      .text(GAME_WIDTH / 2, 74, "Choose one boss power-up before the final portal opens.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#d9e7f8",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
   }
 
   private createCharacterPreview() {

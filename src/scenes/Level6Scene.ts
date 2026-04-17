@@ -223,22 +223,24 @@ export class Level6Scene extends Phaser.Scene {
     }
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Level 6: Laser Hall", {
+      .text(GAME_WIDTH / 2, 36, "Level 6: Laser Hall", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f7fbff",
         stroke: "#050910",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Watch the gun, dodge the burst, and survive until the exit opens.", {
+      .text(GAME_WIDTH / 2, 72, "Watch the gun, dodge the burst, and survive until the exit opens.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#cfe2f8",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
   }
 
   private createHud() {

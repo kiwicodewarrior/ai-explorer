@@ -171,22 +171,24 @@ export class Level5Scene extends Phaser.Scene {
 
   private createHeader() {
     this.add
-      .text(GAME_WIDTH / 2, 30, "Level 5: Rest Area", {
+      .text(GAME_WIDTH / 2, 36, "Level 5: Rest Area", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f7fbff",
         stroke: "#08111a",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 64, "Take a breath, pick one reward, then get ready for the next portal.", {
+      .text(GAME_WIDTH / 2, 74, "Take a breath, pick one reward, then get ready for the next portal.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#d7e7f6",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
   }
 
   private createCharacterPreview() {

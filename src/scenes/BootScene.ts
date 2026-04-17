@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ensureRetroMusic } from "../systems/music";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -10,6 +11,13 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    ensureRetroMusic(this);
+
+    if (!this.scene.isActive("music-control")) {
+      this.scene.launch("music-control");
+      this.scene.bringToTop("music-control");
+    }
+
     this.scene.start("intro");
   }
 }

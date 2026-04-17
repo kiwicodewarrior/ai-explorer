@@ -191,7 +191,7 @@ export class Level3Scene extends Phaser.Scene {
     this.renderRoad();
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Level 3: Runner Escape", {
+      .text(GAME_WIDTH / 2, 36, "Level 3: Runner Escape", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f5f8ff",
@@ -199,15 +199,17 @@ export class Level3Scene extends Phaser.Scene {
         strokeThickness: 6,
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1200);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Switch lanes, jump low barriers, survive the run.", {
+      .text(GAME_WIDTH / 2, 72, "Switch lanes, jump low barriers, survive the run.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "19px",
         color: "#d5e2ff",
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1200);
   }
 

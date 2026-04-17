@@ -243,22 +243,24 @@ export class Level7Scene extends Phaser.Scene {
     });
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Level 7: Barrel Rush", {
+      .text(GAME_WIDTH / 2, 36, "Level 7: Barrel Rush", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#fff5ec",
         stroke: "#130908",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Jump the barrels as they tumble down toward you.", {
+      .text(GAME_WIDTH / 2, 72, "Jump the barrels as they tumble down toward you.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#f2d7c2",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
   }
 
   private drawBarrelSpawner(spawner: BarrelSpawnerConfig) {

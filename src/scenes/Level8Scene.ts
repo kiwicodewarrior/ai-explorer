@@ -108,22 +108,24 @@ export class Level8Scene extends Phaser.Scene {
     }
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Level 8: Seven-Second Stop", {
+      .text(GAME_WIDTH / 2, 36, "Level 8: Seven-Second Stop", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f7fbff",
         stroke: "#080c15",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "You get 8 tries. Stop the stopwatch between 7.00 and 7.50 seconds.", {
+      .text(GAME_WIDTH / 2, 72, "You get 8 tries. Stop the stopwatch between 7.00 and 7.50 seconds.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#d7e6f8",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add.rectangle(176, 166, 220, 92, 0x101829, 0.88).setStrokeStyle(2, 0x5c7091, 0.7);
     this.add.image(104, 166, TEXTURE_KEYS.player).setTint(this.selectedCharacter.primaryColor).setScale(1.6);

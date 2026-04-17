@@ -355,7 +355,7 @@ export class Level4Scene extends Phaser.Scene {
     this.add.ellipse(400, 860, 520, 260, 0x2b6a7e, 0.1);
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Level 4: Reactor Vault", {
+      .text(GAME_WIDTH / 2, 36, "Level 4: Reactor Vault", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f4f8ff",
@@ -367,7 +367,7 @@ export class Level4Scene extends Phaser.Scene {
       .setDepth(40);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Collect every diamond, dodge the drones, then escape.", {
+      .text(GAME_WIDTH / 2, 72, "Collect every diamond, dodge the drones, then escape.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "19px",
         color: "#cbe1ff",

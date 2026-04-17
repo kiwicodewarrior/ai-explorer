@@ -267,22 +267,24 @@ export class GravityFlipScene extends Phaser.Scene {
     });
 
     this.add
-      .text(GAME_WIDTH / 2, 26, "Level 10: Gravity Flip", {
+      .text(GAME_WIDTH / 2, 36, "Level 10: Gravity Flip", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f5fbff",
         stroke: "#07111a",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Switch between ceiling and floor to cross the chamber.", {
+      .text(GAME_WIDTH / 2, 72, "Switch between ceiling and floor to cross the chamber.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#d7e8f6",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
   }
 
   private createPlatforms() {

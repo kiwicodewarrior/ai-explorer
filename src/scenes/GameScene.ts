@@ -291,14 +291,15 @@ export class GameScene extends Phaser.Scene {
     this.createLilyPads();
 
     this.add
-      .text(GAME_WIDTH / 2, 26, "Level 1: Cross the Road", {
+      .text(GAME_WIDTH / 2, 36, "Level 1: Cross the Road", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f6f7ff",
         stroke: "#102341",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
       .text(GAME_WIDTH / 2, TOP_SAFE_BOTTOM / 2, "GOAL", {

@@ -436,7 +436,7 @@ export class Level2Scene extends Phaser.Scene {
     }
 
     this.add
-      .text(GAME_WIDTH / 2, 26, "Level 2: Hard Platform Run", {
+      .text(GAME_WIDTH / 2, 36, "Level 2: Hard Platform Run", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f4f7ff",
@@ -448,7 +448,7 @@ export class Level2Scene extends Phaser.Scene {
       .setDepth(20);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Longer climb. Harder traps. Sometimes the wrong way is right.", {
+      .text(GAME_WIDTH / 2, 72, "Longer climb. Harder traps. Sometimes the wrong way is right.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "20px",
         color: "#c6d9f9",

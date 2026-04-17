@@ -257,7 +257,7 @@ export class RisingWaterScene extends Phaser.Scene {
     });
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Rising Water Ruins", {
+      .text(GAME_WIDTH / 2, 36, "Rising Water Ruins", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f4fbff",
@@ -268,7 +268,7 @@ export class RisingWaterScene extends Phaser.Scene {
       .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "Climb fast, time your jumps, and beat the flood.", {
+      .text(GAME_WIDTH / 2, 72, "Climb fast, time your jumps, and beat the flood.", {
         fontFamily: "system-ui, roboto",
         fontSize: "18px",
         color: "#dceaf8",
@@ -527,7 +527,7 @@ export class RisingWaterScene extends Phaser.Scene {
     this.levelComplete = true;
     this.levelEndTime = this.time.now;
     this.player.setVelocityX(0);
-    this.statusText.setText("Rising Water complete! Press ENTER for the light / shadow maze.");
+    this.statusText.setText("Rising Water complete! Press ENTER for the noise stealth zone.");
     this.cameras.main.flash(180, 220, 255, 235, false);
   }
 
@@ -544,7 +544,7 @@ export class RisingWaterScene extends Phaser.Scene {
     if (this.transitioningToNextLevel) return;
 
     this.transitioningToNextLevel = true;
-    this.scene.start("light-shadow", {
+    this.scene.start("noise-stealth", {
       characterId: this.selectedCharacter.id,
       upgrade: this.upgrade,
       damageBonus: this.damageBonus,

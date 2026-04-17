@@ -51,7 +51,9 @@ const BOSS_ATTACK_DELAY_START_MS = 2_200;
 const BOSS_ATTACK_DELAY_MIN_MS = 850;
 const LASER_SPEED_START = 280;
 const LASER_SPEED_MAX = 450;
-const LASERS_PER_BURST = 3;
+const LASERS_PER_BURST = 7;
+const LASER_BURST_INTERVAL_MS = 90;
+const POST_BURST_OPEN_DELAY_MS = (LASERS_PER_BURST - 1) * LASER_BURST_INTERVAL_MS + 160;
 const LASER_SPREAD_DEGREES = 32;
 const SCRIPTED_SEQUENCE_MS = 30_000;
 const BOSS_FALL_START_MS = 900;
@@ -348,22 +350,24 @@ export class Level10Scene extends Phaser.Scene {
     this.add.rectangle(BOSS_X, 206, 120, 26, 0x231625, 0.92);
 
     this.add
-      .text(GAME_WIDTH / 2, 28, "Level 10: Boss Fight", {
+      .text(GAME_WIDTH / 2, 36, "Level 10: Boss Fight", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "34px",
         color: "#f7fbff",
         stroke: "#05080f",
         strokeThickness: 6,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.add
-      .text(GAME_WIDTH / 2, 58, "The boss fires faster as it weakens. Watch for the opening and strike back.", {
+      .text(GAME_WIDTH / 2, 72, "The boss fires faster as it weakens. Watch for the opening and strike back.", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         color: "#d7e3f7",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
   }
 
   private createPlatforms() {
@@ -704,7 +708,7 @@ export class Level10Scene extends Phaser.Scene {
     this.cameras.main.shake(100, 0.0022);
 
     for (let index = 0; index < LASERS_PER_BURST; index += 1) {
-      this.time.delayedCall(index * 90, () => {
+      this.time.delayedCall(index * LASER_BURST_INTERVAL_MS, () => {
         if (this.phase !== "fight" || this.outOfLives || !this.lasers) return;
 
         const spreadOffset = this.getSpreadOffset(index, LASERS_PER_BURST);
@@ -724,7 +728,7 @@ export class Level10Scene extends Phaser.Scene {
       });
     }
 
-    this.time.delayedCall(340, () => {
+    this.time.delayedCall(POST_BURST_OPEN_DELAY_MS, () => {
       this.openAttackWindow();
     });
   }
